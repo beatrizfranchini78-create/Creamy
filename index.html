@@ -1,0 +1,1039 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Creamy</title>
+
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body class="textura-bolinhas">
+
+    <!-- =====================================================
+         TELA DE LOGIN
+    ====================================================== -->
+    <div id="telaLogin" class="tela-login">
+
+        <div class="login-card">
+
+            <div class="login-icone">🍦</div>
+
+            <h1 id="tituloLogin">Creamy</h1>
+
+            <p id="textoLogin">
+                Entre para acessar seu sistema de estoque e vendas.
+            </p>
+
+            <div class="login-abas">
+                <button
+                    id="abaEntrar"
+                    class="aba-login ativa"
+                    onclick="mostrarLogin()"
+                >
+                    Entrar
+                </button>
+
+                <button
+                    id="abaCadastrar"
+                    class="aba-login"
+                    onclick="mostrarCadastro()"
+                >
+                    Criar conta
+                </button>
+            </div>
+
+
+            <!-- LOGIN -->
+            <form id="formLogin">
+
+                <label>E-mail:</label>
+
+                <input
+                    type="email"
+                    id="loginEmail"
+                    placeholder="Digite seu e-mail"
+                    required
+                >
+
+                <label>Senha:</label>
+
+                <input
+                    type="password"
+                    id="loginSenha"
+                    placeholder="Digite sua senha"
+                    required
+                >
+
+                <button
+                    type="submit"
+                    class="botao-principal botao-login"
+                >
+                    🔐 Entrar no sistema
+                </button>
+
+            </form>
+
+
+            <!-- CADASTRO -->
+            <form id="formCadastro" style="display: none;">
+
+                <label>Nome da sorveteria:</label>
+
+                <input
+                    type="text"
+                    id="cadastroNome"
+                    placeholder="Ex.: Creamy"
+                    required
+                >
+
+                <label>E-mail:</label>
+
+                <input
+                    type="email"
+                    id="cadastroEmail"
+                    placeholder="Digite seu e-mail"
+                    required
+                >
+
+                <label>Senha:</label>
+
+                <input
+                    type="password"
+                    id="cadastroSenha"
+                    placeholder="Crie uma senha com pelo menos 6 caracteres"
+                    minlength="6"
+                    required
+                >
+
+                <button
+                    type="submit"
+                    class="botao-principal botao-login"
+                >
+                    ✨ Criar minha conta
+                </button>
+
+            </form>
+
+
+            <p id="mensagemLogin" class="mensagem-login"></p>
+
+        </div>
+
+    </div>
+
+
+    <!-- =====================================================
+         SISTEMA PRINCIPAL
+    ====================================================== -->
+    <div id="sistema" style="display: none;">
+
+
+        <!-- BOTÃO DE AJUDA -->
+        <button
+            class="btn-ajuda"
+            onclick="abrirAjuda()"
+            title="Ajuda"
+        >
+            ❓
+        </button>
+
+
+        <!-- CABEÇALHO / FACHADA -->
+        <header id="fachada">
+
+            <h1 id="nomeSorveteria">
+                🍦 Creamy
+            </h1>
+
+            <p id="subtituloSorveteria">
+                Sistema de Controle de Estoque, Vendas, Custos e Lucros
+            </p>
+
+        </header>
+
+
+        <!-- MENU -->
+        <nav>
+
+            <button onclick="rolarPara('inicio')">
+                🏠 Início
+            </button>
+
+            <button onclick="rolarPara('estoque')">
+                📦 Estoque
+            </button>
+
+            <button onclick="rolarPara('vendas')">
+                🛒 Vendas
+            </button>
+
+            <button onclick="rolarPara('retirada')">
+                📤 Retirada
+            </button>
+
+            <button onclick="rolarPara('historico')">
+                📜 Histórico
+            </button>
+
+            <button onclick="abrirPersonalizacao()">
+                🎨 Personalizar site
+            </button>
+
+            <button
+                class="botao-sair"
+                onclick="sairDoSistema()"
+            >
+                🚪 Sair
+            </button>
+
+        </nav>
+
+
+        <main id="inicio">
+
+
+            <!-- RESUMO FINANCEIRO -->
+            <section class="resumo">
+
+                <div class="card-resumo">
+                    <h3>💰 Receita</h3>
+                    <p id="receita">R$ 0,00</p>
+                </div>
+
+                <div class="card-resumo">
+                    <h3>📉 Custos</h3>
+                    <p id="custos">R$ 0,00</p>
+                </div>
+
+                <div class="card-resumo">
+                    <h3>📈 Lucro</h3>
+                    <p id="lucro">R$ 0,00</p>
+                </div>
+
+            </section>
+
+
+            <!-- CADASTRO DE PRODUTOS -->
+            <section id="estoque" class="painel">
+
+                <h2>📦 Adicionar produto ao estoque</h2>
+
+                <div class="grid-form">
+
+                    <div>
+                        <label>Nome do produto:</label>
+
+                        <input
+                            type="text"
+                            id="nomeProduto"
+                            placeholder="Ex.: Sorvete de Chocolate"
+                        >
+                    </div>
+
+
+                    <div>
+                        <label>Categoria:</label>
+
+                        <select id="categoriaProduto">
+
+                            <option value="Sorvete">
+                                🍦 Sorvete
+                            </option>
+
+                            <option value="Picolé">
+                                🍭 Picolé
+                            </option>
+
+                            <option value="Casquinha">
+                                🍦 Casquinha
+                            </option>
+
+                            <option value="Copo">
+                                🥤 Copo
+                            </option>
+
+                            <option value="Cobertura">
+                                🍫 Cobertura
+                            </option>
+
+                            <option value="Fruta">
+                                🍓 Fruta
+                            </option>
+
+                            <option value="Outro">
+                                📦 Outro
+                            </option>
+
+                        </select>
+                    </div>
+
+
+                    <div>
+                        <label>Quantidade:</label>
+
+                        <input
+                            type="text"
+                            id="quantidadeProduto"
+                            placeholder="Ex.: 10 ou 1,5"
+                        >
+                    </div>
+
+
+                    <div>
+                        <label>Unidade de medida:</label>
+
+                        <select id="unidadeProduto">
+
+                            <option value="unidade">
+                                Unidade
+                            </option>
+
+                            <option value="casquinha">
+                                Casquinha
+                            </option>
+
+                            <option value="copo 300 ml">
+                                Copo 300 ml
+                            </option>
+
+                            <option value="copo 500 ml">
+                                Copo 500 ml
+                            </option>
+
+                            <option value="litro">
+                                Litro
+                            </option>
+
+                            <option value="kg">
+                                Kg
+                            </option>
+
+                            <option value="grama">
+                                Grama
+                            </option>
+
+                            <option value="ml">
+                                ml
+                            </option>
+
+                        </select>
+                    </div>
+
+
+                    <div>
+                        <label>Custo unitário (R$):</label>
+
+                        <input
+                            type="text"
+                            id="custoProduto"
+                            placeholder="Ex.: 2,50"
+                        >
+                    </div>
+
+
+                    <div>
+                        <label>Preço de venda (R$):</label>
+
+                        <input
+                            type="text"
+                            id="precoProduto"
+                            placeholder="Ex.: 8,50"
+                        >
+                    </div>
+
+                </div>
+
+
+                <button
+                    class="botao-principal"
+                    onclick="adicionarProduto()"
+                >
+                    ➕ Adicionar ao estoque
+                </button>
+
+            </section>
+
+
+            <!-- ESTOQUE -->
+            <section class="painel">
+
+                <h2>📋 Estoque atual</h2>
+
+                <div class="tabela-container">
+
+                    <table>
+
+                        <thead>
+
+                            <tr>
+                                <th>Produto</th>
+                                <th>Categoria</th>
+                                <th>Quantidade</th>
+                                <th>Custo</th>
+                                <th>Venda</th>
+                                <th>Cadastro</th>
+                                <th>Ações</th>
+                            </tr>
+
+                        </thead>
+
+                        <tbody id="tabelaEstoque"></tbody>
+
+                    </table>
+
+                </div>
+
+            </section>
+
+
+            <!-- VENDAS -->
+            <section id="vendas" class="painel">
+
+                <h2>🛒 Registrar vendas</h2>
+
+                <div class="venda-container">
+
+                    <div>
+
+                        <label>Escolha o produto:</label>
+
+                        <select id="produtoVenda">
+
+                            <option value="">
+                                Selecione um produto
+                            </option>
+
+                        </select>
+
+                    </div>
+
+
+                    <div>
+
+                        <label>Quantidade:</label>
+
+                        <input
+                            type="text"
+                            id="quantidadeVenda"
+                            placeholder="Ex.: 2"
+                        >
+
+                    </div>
+
+                </div>
+
+
+                <button
+                    class="botao-secundario"
+                    onclick="adicionarAoCarrinho()"
+                >
+                    ➕ Adicionar à venda
+                </button>
+
+
+                <!-- CARRINHO -->
+                <div class="carrinho">
+
+                    <h3>🧾 Produtos da venda</h3>
+
+                    <div id="listaCarrinho">
+                        <p>Nenhum produto adicionado.</p>
+                    </div>
+
+                    <p class="total-venda">
+                        Total:
+                        <strong id="totalCarrinho">
+                            R$ 0,00
+                        </strong>
+                    </p>
+
+                    <button
+                        class="botao-principal"
+                        onclick="finalizarVenda()"
+                    >
+                        💰 Finalizar venda
+                    </button>
+
+                </div>
+
+            </section>
+
+
+            <!-- RETIRADA -->
+            <section id="retirada" class="painel">
+
+                <h2>📤 Retirar produto do estoque</h2>
+
+                <p>
+                    Use esta opção para registrar perdas, consumo interno,
+                    desperdícios ou qualquer retirada que não seja uma venda.
+                </p>
+
+                <div class="venda-container">
+
+                    <div>
+
+                        <label>Produto:</label>
+
+                        <select id="produtoRetirada">
+
+                            <option value="">
+                                Selecione um produto
+                            </option>
+
+                        </select>
+
+                    </div>
+
+
+                    <div>
+
+                        <label>Quantidade retirada:</label>
+
+                        <input
+                            type="text"
+                            id="quantidadeRetirada"
+                            placeholder="Ex.: 1"
+                        >
+
+                    </div>
+
+                </div>
+
+
+                <button
+                    class="botao-alerta"
+                    onclick="retirarProduto()"
+                >
+                    📦 Registrar retirada
+                </button>
+
+            </section>
+
+
+            <!-- GRÁFICO -->
+            <section class="painel">
+
+                <h2>📊 Gráfico de vendas por produto</h2>
+
+                <p>
+                    O gráfico mostra a quantidade total vendida
+                    de cada produto.
+                </p>
+
+                <div
+                    id="graficoVendas"
+                    class="grafico"
+                ></div>
+
+            </section>
+
+
+            <!-- HISTÓRICO DE VENDAS -->
+            <section id="historico" class="painel">
+
+                <h2>📜 Histórico de vendas</h2>
+
+                <div id="listaHistorico">
+                    <p>🧾 Nenhuma venda registrada.</p>
+                </div>
+
+                <button
+                    class="botao-principal"
+                    onclick="exportarExcel()"
+                >
+                    📥 Exportar histórico para Excel
+                </button>
+
+                <button
+                    class="botao-alerta"
+                    onclick="limparHistorico()"
+                >
+                    🗑️ Limpar histórico
+                </button>
+
+            </section>
+
+
+            <!-- HISTÓRICO DE RETIRADAS -->
+            <section class="painel">
+
+                <h2>📦 Histórico de retiradas</h2>
+
+                <div id="listaRetiradas">
+                    <p>📦 Nenhuma retirada registrada.</p>
+                </div>
+
+            </section>
+
+
+            <!-- ENCERRAMENTO -->
+            <section class="painel encerramento">
+
+                <h2>🌙 Encerramento do dia</h2>
+
+                <p>
+                    Confira o resultado das vendas realizadas hoje
+                    antes de encerrar o dia.
+                </p>
+
+                <button
+                    class="botao-principal"
+                    onclick="encerrarDia()"
+                >
+                    🌙 Encerrar vendas do dia
+                </button>
+
+            </section>
+
+        </main>
+
+
+        <!-- RODAPÉ -->
+        <footer id="rodape">
+
+            <p id="textoRodape1">
+                🍦 Sistema de Controle da Fábrica da Creamy.
+            </p>
+
+            <p id="textoRodape2">
+                Sistema de estoque, vendas, custos e lucros.
+            </p>
+
+        </footer>
+
+    </div>
+
+
+    <!-- =====================================================
+         MODAL DE PERSONALIZAÇÃO
+    ====================================================== -->
+    <div
+        id="modalPersonalizacao"
+        class="modal"
+    >
+
+        <div class="modal-conteudo">
+
+            <span
+                class="fechar"
+                onclick="fecharPersonalizacao()"
+            >
+                ✖
+            </span>
+
+
+            <h2>🎨 Personalizar site</h2>
+
+            <p>
+                Altere o visual e os textos da sua sorveteria.
+                Todas as alterações ficam salvas na sua conta.
+            </p>
+
+
+            <h3>🏪 Informações da sorveteria</h3>
+
+            <div class="personalizacao-grid">
+
+                <div>
+
+                    <label>Nome da sorveteria:</label>
+
+                    <input
+                        type="text"
+                        id="novoNomeSorveteria"
+                    >
+
+                </div>
+
+
+                <div>
+
+                    <label>Subtítulo:</label>
+
+                    <input
+                        type="text"
+                        id="novoSubtituloSorveteria"
+                    >
+
+                </div>
+
+
+                <div>
+
+                    <label>Primeira frase do rodapé:</label>
+
+                    <input
+                        type="text"
+                        id="novoTextoRodape1"
+                    >
+
+                </div>
+
+
+                <div>
+
+                    <label>Segunda frase do rodapé:</label>
+
+                    <input
+                        type="text"
+                        id="novoTextoRodape2"
+                    >
+
+                </div>
+
+            </div>
+
+
+            <h3>🌈 Cores</h3>
+
+            <div class="personalizacao-grid">
+
+                <div>
+                    <label>Cor da fachada:</label>
+                    <input type="color" id="corFachada">
+                </div>
+
+                <div>
+                    <label>Cor do rodapé:</label>
+                    <input type="color" id="corRodape">
+                </div>
+
+                <div>
+                    <label>Cor dos botões:</label>
+                    <input type="color" id="corBotoes">
+                </div>
+
+                <div>
+                    <label>Cor do botão de ajuda:</label>
+                    <input type="color" id="corAjuda">
+                </div>
+
+                <div>
+                    <label>Cor de fundo:</label>
+                    <input type="color" id="corFundo">
+                </div>
+
+                <div>
+                    <label>Cor dos cartões:</label>
+                    <input type="color" id="corCartoes">
+                </div>
+
+                <div>
+                    <label>Cor dos títulos:</label>
+                    <input type="color" id="corTitulos">
+                </div>
+
+                <div>
+                    <label>Cor do texto:</label>
+                    <input type="color" id="corTexto">
+                </div>
+
+            </div>
+
+
+            <h3>🔤 Tamanho</h3>
+
+            <div class="personalizacao-grid">
+
+                <div>
+
+                    <label>
+                        Tamanho das letras:
+                        <span id="valorTamanhoFonte">100%</span>
+                    </label>
+
+                    <input
+                        type="range"
+                        id="tamanhoFonte"
+                        min="80"
+                        max="130"
+                        value="100"
+                    >
+
+                </div>
+
+
+                <div>
+
+                    <label>
+                        Tamanho das caixas:
+                        <span id="valorTamanhoCaixa">100%</span>
+                    </label>
+
+                    <input
+                        type="range"
+                        id="tamanhoCaixa"
+                        min="80"
+                        max="130"
+                        value="100"
+                    >
+
+                </div>
+
+            </div>
+
+
+            <h3>✨ Textura do fundo</h3>
+
+            <select id="texturaSite">
+
+                <option value="bolinhas">
+                    🔵 Bolinhas
+                </option>
+
+                <option value="listras">
+                    📏 Listras
+                </option>
+
+                <option value="liso">
+                    ⬜ Liso
+                </option>
+
+            </select>
+
+
+            <br><br>
+
+
+            <button
+                class="botao-principal"
+                onclick="aplicarPersonalizacao()"
+            >
+                💾 Salvar personalização
+            </button>
+
+            <button
+                class="botao-secundario"
+                onclick="restaurarPersonalizacao()"
+            >
+                🔄 Restaurar visual original
+            </button>
+
+        </div>
+
+    </div>
+
+
+    <!-- =====================================================
+         MODAL DE AJUDA
+    ====================================================== -->
+    <div
+        id="modalAjuda"
+        class="modal"
+    >
+
+        <div class="modal-conteudo ajuda">
+
+            <span
+                class="fechar"
+                onclick="fecharAjuda()"
+            >
+                ✖
+            </span>
+
+
+            <h2>❓ Como usar o sistema?</h2>
+
+
+            <div class="ajuda-item">
+
+                <h3>📦 1. Adicionar produtos ao estoque</h3>
+
+                <p>
+                    Nesta parte você cadastra todos os produtos que sua
+                    sorveteria possui.
+                </p>
+
+                <p>
+                    <strong>Exemplo:</strong>
+                    nome: Sorvete de Chocolate; quantidade: 10;
+                    unidade: Litro; custo: R$ 15,00;
+                    preço de venda: R$ 25,00.
+                </p>
+
+                <p>
+                    O sistema registra automaticamente a data e o horário
+                    do cadastro.
+                </p>
+
+            </div>
+
+
+            <div class="ajuda-item">
+
+                <h3>➕ 2. Aumentar o estoque</h3>
+
+                <p>
+                    Na tabela do estoque, clique no botão ➕ do produto
+                    desejado para adicionar mais quantidade.
+                </p>
+
+                <p>
+                    <strong>Exemplo:</strong>
+                    se existem 10 litros de sorvete e chegam mais 5 litros,
+                    você adiciona 5. O estoque passará a ter 15 litros.
+                </p>
+
+            </div>
+
+
+            <div class="ajuda-item">
+
+                <h3>🗑️ 3. Remover um produto</h3>
+
+                <p>
+                    O botão 🗑️ remove completamente um produto do estoque.
+                    Use-o quando não desejar mais trabalhar com aquele
+                    produto.
+                </p>
+
+            </div>
+
+
+            <div class="ajuda-item">
+
+                <h3>🛒 4. Registrar uma venda</h3>
+
+                <p>
+                    Escolha o produto e informe a quantidade. Depois clique
+                    em “Adicionar à venda”.
+                </p>
+
+                <p>
+                    Você pode repetir esse processo e adicionar vários
+                    produtos ao mesmo carrinho antes de finalizar.
+                </p>
+
+                <p>
+                    <strong>Exemplo:</strong>
+                    uma venda pode ter 2 sorvetes, 1 cobertura e 3 picolés.
+                    Tudo será registrado junto na mesma venda.
+                </p>
+
+                <p>
+                    Quando finalizar, o estoque será atualizado
+                    automaticamente e a venda receberá data e horário.
+                </p>
+
+            </div>
+
+
+            <div class="ajuda-item">
+
+                <h3>📤 5. Retirar produtos</h3>
+
+                <p>
+                    Esta função é para produtos que saíram do estoque,
+                    mas não foram vendidos.
+                </p>
+
+                <p>
+                    <strong>Exemplos:</strong>
+                    desperdício, produto estragado, consumo interno ou
+                    qualquer outra retirada.
+                </p>
+
+                <p>
+                    Cada retirada também fica registrada com data e horário.
+                </p>
+
+            </div>
+
+
+            <div class="ajuda-item">
+
+                <h3>💰 6. Receita, custos e lucro</h3>
+
+                <p>
+                    A receita mostra todo o dinheiro obtido com as vendas.
+                    Os custos são calculados utilizando o custo dos produtos.
+                    O lucro é calculado automaticamente:
+                </p>
+
+                <p>
+                    <strong>Lucro = Receita − Custos</strong>
+                </p>
+
+            </div>
+
+
+            <div class="ajuda-item">
+
+                <h3>📊 7. Gráfico de vendas</h3>
+
+                <p>
+                    O gráfico mostra quais produtos tiveram mais vendas.
+                    Quanto maior a barra, maior foi a quantidade vendida.
+                </p>
+
+            </div>
+
+
+            <div class="ajuda-item">
+
+                <h3>📜 8. Histórico</h3>
+
+                <p>
+                    Todas as vendas ficam guardadas com seus produtos,
+                    valores, custos, lucro, data e horário.
+                </p>
+
+                <p>
+                    Você pode exportar o histórico para um arquivo
+                    compatível com o Excel.
+                </p>
+
+            </div>
+
+
+            <div class="ajuda-item">
+
+                <h3>🎨 9. Personalizar o site</h3>
+
+                <p>
+                    Você pode alterar as cores da fachada, rodapé, botões,
+                    botão de ajuda, fundo, cartões, títulos e textos.
+                </p>
+
+                <p>
+                    Também é possível mudar a textura, o tamanho das letras,
+                    o tamanho das caixas, o nome da sorveteria e os textos
+                    do rodapé.
+                </p>
+
+                <p>
+                    Todas essas alterações ficam salvas exclusivamente
+                    na conta do cliente.
+                </p>
+
+            </div>
+
+
+            <div class="ajuda-item">
+
+                <h3>🔐 10. Login e salvamento</h3>
+
+                <p>
+                    Cada cliente possui seu próprio e-mail e senha.
+                    Ao entrar novamente na conta, os produtos, vendas,
+                    retiradas e personalizações continuam salvos.
+                </p>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <!-- IMPORTANTE: AGORA É TYPE MODULE -->
+    <script
+        type="module"
+        src="script.js"
+    ></script>
+
+</body>
+</html>
