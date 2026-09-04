@@ -1,65 +1,89 @@
-const CACHE_NAME = "creamy-v1";
+const CACHE_NAME = "creamy-v2";
 
 const ARQUIVOS = [
     "./",
     "./index.html",
     "./style.css",
-    "./script.js",
     "./manifest.json"
 ];
 
-self.addEventListener("install", evento => {
+self.addEventListener("install", function (event) {
 
-    evento.waitUntil(
+    self.skipWaiting();
 
+    event.waitUntil(
         caches.open(CACHE_NAME)
-            .then(cache => {
-
+            .then(function (cache) {
                 return cache.addAll(ARQUIVOS);
-
             })
+    );
+
+});
+
+
+self.addEventListener("activate", function (event) {
+
+    event.waitUntil(
+
+        caches.keys().then(function (nomes) {
+
+            return Promise.all(
+
+                nomes
+                    .filter(function (nome) {
+                        return nome !== CACHE_NAME;
+                    })
+                    .map(function (nome) {
+                        return caches.delete(nome);
+                    })
+
+            );
+
+        }).then(function () {
+
+            return self.clients.claim();
+
+        })
 
     );
 
 });
 
 
-self.addEventListener("activate", evento => {
+self.addEventListener("fetch", function (event) {
 
-    evento.waitUntil(
+    const url = new URL(event.request.url);
 
-        caches.keys()
-            .then(chaves => {
+    if (url.origin !== self.location.origin) {
+        return;
+    }
 
-                return Promise.all(
+    event.respondWith(
 
-                    chaves
-                        .filter(chave => chave !== CACHE_NAME)
-                        .map(chave => caches.delete(chave))
+        fetch(event.request)
+            .then(function (resposta) {
 
+                const copia =
+                    resposta.clone();
+
+                caches.open(CACHE_NAME)
+                    .then(function (cache) {
+
+                        cache.put(
+                            event.request,
+                            copia
+                        );
+
+                    });
+
+                return resposta;
+
+            })
+            .catch(function () {
+
+                return caches.match(
+                    event.request
                 );
-
-            })
-
-    );
-
-});
-
-
-self.addEventListener("fetch", evento => {
-
-    evento.respondWith(
-
-        caches.match(evento.request)
-            .then(resposta => {
-
-                return resposta ||
-                    fetch(evento.request);
-
-            })
-            .catch(() => {
-
-                return caches.match("./index.html");
 
             })
 
