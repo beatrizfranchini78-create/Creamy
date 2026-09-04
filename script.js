@@ -1560,33 +1560,42 @@ function (indice) {
 /* =========================================================
    FINALIZAR VENDA
 ========================================================= */
+/* =========================================================
+   FINALIZAR VENDA
+   CORRIGIDO PARA VÁRIOS PRODUTOS
+========================================================= */
 
 window.finalizarVenda =
 async function () {
 
-    if (carrinho.length === 0) {
-
+    if (!usuarioAtual) {
         alert(
-            "🛒 Adicione pelo menos um produto à venda."
+            "❌ Você precisa estar logado."
         );
-
         return;
     }
 
+    if (carrinho.length === 0) {
+        alert(
+            "🛒 Adicione pelo menos um produto à venda."
+        );
+        return;
+    }
 
     try {
 
         await runTransaction(
             db,
-
             async function (transaction) {
 
-                for (
-                    const item of carrinho
-                ) {
+                /* =========================================
+                   1. CRIAR TODAS AS REFERÊNCIAS
+                ========================================= */
 
-                    const referencia =
-                        doc(
+                const referencias =
+                    carrinho.map(function (item) {
+
+                        return doc(
                             db,
                             "usuarios",
                             usuarioAtual.uid,
@@ -1594,11 +1603,47 @@ async function () {
                             item.id
                         );
 
+                    });
+
+
+                /* =========================================
+                   2. LER TODOS OS PRODUTOS PRIMEIRO
+                ========================================= */
+
+                const documentos = [];
+
+                for (
+                    const referencia of referencias
+                ) {
 
                     const documento =
                         await transaction.get(
                             referencia
                         );
+
+                    documentos.push(
+                        documento
+                    );
+                }
+
+
+                /* =========================================
+                   3. VERIFICAR TODOS OS ESTOQUES
+                ========================================= */
+
+                const produtosAtualizados = [];
+
+                for (
+                    let i = 0;
+                    i < carrinho.length;
+                    i++
+                ) {
+
+                    const item =
+                        carrinho[i];
+
+                    const documento =
+                        documentos[i];
 
 
                     if (
@@ -1616,46 +1661,51 @@ async function () {
 
 
                     if (
-                        dados.quantidade <
-                        item.quantidade
+                        Number(dados.quantidade) <
+                        Number(item.quantidade)
                     ) {
 
                         throw new Error(
-                            `Estoque insuficiente para ${item.nome}.`
+                            `Estoque insuficiente para ${item.nome}. Disponível: ${dados.quantidade} ${dados.unidade}.`
                         );
                     }
 
 
-                    transaction.update(
-                        referencia,
-                        {
+                    produtosAtualizados.push({
 
-                            quantidade:
-                                dados.quantidade -
-                                item.quantidade
+                        referencia:
+                            referencias[i],
 
-                        }
-                    );
+                        quantidadeNova:
+                            Number(dados.quantidade) -
+                            Number(item.quantidade)
+
+                    });
 
                 }
 
 
-                let valorTotal = 0;
+                /* =========================================
+                   4. CALCULAR VALORES DA VENDA
+                ========================================= */
 
+                let valorTotal = 0;
                 let custoTotal = 0;
 
 
-                carrinho.forEach(item => {
+                carrinho.forEach(
+                    function (item) {
 
-                    valorTotal +=
-                        item.quantidade *
-                        item.preco;
+                        valorTotal +=
+                            Number(item.quantidade) *
+                            Number(item.preco);
 
-                    custoTotal +=
-                        item.quantidade *
-                        item.custo;
+                        custoTotal +=
+                            Number(item.quantidade) *
+                            Number(item.custo);
 
-                });
+                    }
+                );
 
 
                 const lucro =
@@ -1666,6 +1716,30 @@ async function () {
                 const data =
                     obterDataAtual();
 
+
+                /* =========================================
+                   5. ATUALIZAR TODOS OS ESTOQUES
+                   SÓ AGORA COMEÇAM OS WRITES
+                ========================================= */
+
+                produtosAtualizados.forEach(
+                    function (produto) {
+
+                        transaction.update(
+                            produto.referencia,
+                            {
+                                quantidade:
+                                    produto.quantidadeNova
+                            }
+                        );
+
+                    }
+                );
+
+
+                /* =========================================
+                   6. REGISTRAR A VENDA
+                ========================================= */
 
                 const novaVenda =
                     doc(
@@ -1688,9 +1762,13 @@ async function () {
 
                         itens:
                             carrinho.map(
-                                item => ({
-                                    ...item
-                                })
+                                function (item) {
+
+                                    return {
+                                        ...item
+                                    };
+
+                                }
                             ),
 
                         receita:
@@ -1699,7 +1777,8 @@ async function () {
                         custo:
                             custoTotal,
 
-                        lucro,
+                        lucro:
+                            lucro,
 
                         criadoEm:
                             serverTimestamp()
@@ -1711,6 +1790,10 @@ async function () {
         );
 
 
+        /* =========================================
+           7. LIMPAR CARRINHO
+        ========================================= */
+
         carrinho = [];
 
         atualizarCarrinho();
@@ -1720,17 +1803,22 @@ async function () {
             "🎉 Venda finalizada com sucesso!"
         );
 
+
     } catch (erro) {
 
-        console.error(erro);
+        console.error(
+            "Erro ao finalizar venda:",
+            erro
+        );
+
 
         alert(
             `❌ ${erro.message}`
         );
+
     }
 
 };
-
 
 /* =========================================================
    RETIRAR PRODUTO
