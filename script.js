@@ -2955,3 +2955,27 @@ window.addEventListener(
 
     }
 );
+/* =========================================================
+   🍦 TELA DE CARREGAMENTO
+========================================================= */
+
+window.addEventListener("load", function () {
+
+    setTimeout(function () {
+
+        const tela =
+            document.getElementById(
+                "telaCarregamento"
+            );
+
+        if (tela) {
+
+            tela.classList.add(
+                "esconder"
+            );
+
+        }
+
+    }, 2800);
+
+});
