@@ -81,3 +81,281 @@ exports.criarFuncionario = onCall(async (request) => {
     throw new HttpsError('internal', 'Não foi possível criar o funcionário. Confira os registros da função.');
   }
 });
+
+const { onCall, HttpsError } = require("firebase-functions/v2/https");
+const { initializeApp } = require("firebase-admin/app");
+const {
+  getFirestore,
+  FieldValue
+} = require("firebase-admin/firestore");
+
+initializeApp();
+
+const db = getFirestore();
+
+const MODALIDADES = [
+  "consumo_local",
+  "retirada",
+  "entrega"
+];
+
+const CARGOS_QUE_VENDEM = [
+  "dono",
+  "vendas",
+  "cliente"
+];
+
+exports.criarPedido = onCall(
+  {
+    region: "southamerica-east1",
+    enforceAppCheck: false
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError(
+        "unauthenticated",
+        "Entre na sua conta antes de fazer um pedido."
+      );
+    }
+
+    const claims = request.auth.token;
+    const cargo = claims.cargo;
+    const sorveteriaId = claims.sorveteriaId;
+
+    if (
+      !CARGOS_QUE_VENDEM.includes(cargo) ||
+      typeof sorveteriaId !== "string" ||
+      !sorveteriaId
+    ) {
+      throw new HttpsError(
+        "permission-denied",
+        "Sua conta não tem permissão para fazer pedidos."
+      );
+    }
+
+    const dados = request.data || {};
+    const modalidade = dados.modalidade;
+    const itensRecebidos = dados.itens;
+
+    if (!MODALIDADES.includes(modalidade)) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Escolha consumo local, retirada ou entrega."
+      );
+    }
+
+    if (
+      !Array.isArray(itensRecebidos) ||
+      itensRecebidos.length === 0 ||
+      itensRecebidos.length > 50
+    ) {
+      throw new HttpsError(
+        "invalid-argument",
+        "O pedido precisa ter entre 1 e 50 itens."
+      );
+    }
+
+    const quantidadesPorProduto = new Map();
+
+    for (const item of itensRecebidos) {
+      if (
+        !item ||
+        typeof item.produtoId !== "string" ||
+        !item.produtoId ||
+        !Number.isSafeInteger(item.quantidade) ||
+        item.quantidade <= 0
+      ) {
+        throw new HttpsError(
+          "invalid-argument",
+          "Um dos produtos ou quantidades é inválido."
+        );
+      }
+
+      const anterior =
+        quantidadesPorProduto.get(item.produtoId) || 0;
+
+      const total = anterior + item.quantidade;
+
+      if (!Number.isSafeInteger(total) || total > 10000) {
+        throw new HttpsError(
+          "invalid-argument",
+          "A quantidade solicitada é muito alta."
+        );
+      }
+
+      quantidadesPorProduto.set(item.produtoId, total);
+    }
+
+    const pedidosRef = db
+      .collection("Sorveterias")
+      .doc(sorveteriaId)
+      .collection("pedidos");
+
+    const produtosRef = db
+      .collection("Sorveterias")
+      .doc(sorveteriaId)
+      .collection("produtos");
+
+    const novoPedidoRef = pedidosRef.doc();
+
+    const nomeCliente =
+      typeof dados.nomeCliente === "string"
+        ? dados.nomeCliente.trim().slice(0, 100)
+        : "";
+
+    const observacoes =
+      typeof dados.observacoes === "string"
+        ? dados.observacoes.trim().slice(0, 500)
+        : "";
+
+    const endereco =
+      modalidade === "entrega" &&
+      typeof dados.endereco === "string"
+        ? dados.endereco.trim().slice(0, 300)
+        : "";
+
+    if (modalidade === "entrega" && !endereco) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Informe o endereço para entrega."
+      );
+    }
+
+    try {
+      const resultado = await db.runTransaction(
+        async (transaction) => {
+          const referencias = Array.from(
+            quantidadesPorProduto.keys()
+          ).map((id) => produtosRef.doc(id));
+
+          // Ler todos os documentos antes de escrever.
+          const documentos = [];
+
+          for (const referencia of referencias) {
+            documentos.push(
+              await transaction.get(referencia)
+            );
+          }
+
+          const itensConfirmados = [];
+          let total = 0;
+
+          for (let i = 0; i < documentos.length; i++) {
+            const documento = documentos[i];
+            const produtoId = Array.from(
+              quantidadesPorProduto.keys()
+            )[i];
+
+            const quantidade =
+              quantidadesPorProduto.get(produtoId);
+
+            if (!documento.exists) {
+              throw new HttpsError(
+                "not-found",
+                "Um dos produtos não foi encontrado."
+              );
+            }
+
+            const produto = documento.data();
+
+            if (
+              produto.ativo === false ||
+              !Number.isFinite(Number(produto.quantidade)) ||
+              !Number.isFinite(Number(produto.preco)) ||
+              Number(produto.preco) < 0
+            ) {
+              throw new HttpsError(
+                "failed-precondition",
+                `O produto ${produto.nome || produtoId} não está disponível.`
+              );
+            }
+
+            if (Number(produto.quantidade) < quantidade) {
+              throw new HttpsError(
+                "failed-precondition",
+                `Estoque insuficiente para ${produto.nome || produtoId}.`
+              );
+            }
+
+            const preco = Number(produto.preco);
+            const subtotal = preco * quantidade;
+
+            if (!Number.isFinite(subtotal)) {
+              throw new HttpsError(
+                "invalid-argument",
+                "O valor de um item é inválido."
+              );
+            }
+
+            total += subtotal;
+
+            itensConfirmados.push({
+              produtoId,
+              nome: String(produto.nome || "Produto"),
+              quantidade,
+              unidade: String(produto.unidade || "un."),
+              preco,
+              subtotal
+            });
+          }
+
+          if (!Number.isFinite(total)) {
+            throw new HttpsError(
+              "invalid-argument",
+              "Não foi possível calcular o total."
+            );
+          }
+
+          // Desconta o estoque e registra o pedido juntos.
+          for (let i = 0; i < documentos.length; i++) {
+            const produto = documentos[i].data();
+            const produtoId = Array.from(
+              quantidadesPorProduto.keys()
+            )[i];
+
+            transaction.update(referencias[i], {
+              quantidade:
+                Number(produto.quantidade) -
+                quantidadesPorProduto.get(produtoId)
+            });
+          }
+
+          transaction.set(novoPedidoRef, {
+            clienteUid: request.auth.uid,
+            nomeCliente,
+            modalidade,
+            endereco,
+            observacoes,
+            itens: itensConfirmados,
+            total: Number(total.toFixed(2)),
+            status: "recebido",
+            criadoEm: FieldValue.serverTimestamp(),
+            atualizadoEm: FieldValue.serverTimestamp()
+          });
+
+          return {
+            pedidoId: novoPedidoRef.id,
+            total: Number(total.toFixed(2))
+          };
+        }
+      );
+
+      return {
+        sucesso: true,
+        pedidoId: resultado.pedidoId,
+        total: resultado.total
+      };
+    } catch (erro) {
+      if (erro instanceof HttpsError) {
+        throw erro;
+      }
+
+      console.error("Falha ao criar pedido:", erro);
+
+      throw new HttpsError(
+        "internal",
+        "Não foi possível registrar o pedido. Tente novamente."
+      );
+    }
+  }
+);
