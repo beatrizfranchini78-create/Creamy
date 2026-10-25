@@ -1,0 +1,130 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#e95fa5">
+  <title>Creamy | Área do Cliente</title>
+  <link rel="manifest" href="./manifest.json">
+  <link rel="stylesheet" href="./style.css">
+  <style>
+    .area-cliente {
+      width: min(100% - 32px, 1000px);
+      margin: 24px auto;
+    }
+
+    .cliente-painel {
+      background: var(--cor-cartoes, #fff);
+      color: var(--cor-texto, #343434);
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 18px;
+      box-shadow: 0 3px 12px #00000012;
+    }
+
+    .cliente-painel input,
+    .cliente-painel select,
+    .cliente-painel textarea {
+      display: block;
+      width: 100%;
+      box-sizing: border-box;
+      margin: 8px 0 16px;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      font: inherit;
+    }
+
+    .cliente-botao {
+      background: var(--cor-botoes, #d64a91);
+      color: white;
+      border: 0;
+      padding: 12px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font: inherit;
+    }
+
+    .cliente-aviso {
+      padding: 12px;
+      border-radius: 8px;
+      background: var(--cor-fundo, #f7d6e8);
+    }
+  </style>
+</head>
+<body>
+  <header id="fachada">
+    <h1>🍦 Creamy</h1>
+    <p>Cardápio e pedidos</p>
+  </header>
+
+  <main class="area-cliente">
+    <section class="cliente-painel">
+      <h2>🍨 Nosso cardápio</h2>
+      <p id="mensagemCardapio" class="cliente-aviso">
+        O cardápio será carregado quando a conexão com o estoque
+        compartilhado estiver configurada.
+      </p>
+      <div id="listaCardapio"></div>
+    </section>
+
+    <section class="cliente-painel">
+      <h2>🛒 Meu carrinho</h2>
+      <div id="listaCarrinho">
+        <p>Seu carrinho está vazio.</p>
+      </div>
+      <p>
+        Total: <strong id="totalCarrinhoCliente">R$ 0,00</strong>
+      </p>
+
+      <label for="modalidadePedido">Como deseja receber?</label>
+      <select id="modalidadePedido">
+        <option value="consumo_local">Consumir no local</option>
+        <option value="retirada">Retirar na sorveteria</option>
+        <option value="entrega">Receber por entrega</option>
+      </select>
+
+      <label for="nomeCliente">Nome para o pedido</label>
+      <input id="nomeCliente" maxlength="100" autocomplete="name">
+
+      <label for="enderecoCliente">Endereço para entrega</label>
+      <textarea id="enderecoCliente" maxlength="300"
+        placeholder="Preencha se escolher entrega"></textarea>
+
+      <label for="observacoesCliente">Observações</label>
+      <textarea id="observacoesCliente" maxlength="500"
+        placeholder="Ex.: sem cobertura"></textarea>
+
+      <button class="cliente-botao" id="botaoFinalizarPedido" disabled>
+        Confirmar pedido
+      </button>
+      <p id="mensagemPedido" role="status" aria-live="polite"></p>
+    </section>
+
+    <section class="cliente-painel">
+      <h2>📦 Acompanhar meus pedidos</h2>
+      <div id="meusPedidos">
+        <p>O acompanhamento será ativado quando a autenticação e as
+          permissões dos pedidos estiverem configuradas.</p>
+      </div>
+    </section>
+
+    <section class="cliente-painel">
+      <h2>⭐ Avaliações e sugestões</h2>
+      <p>Essa área será conectada à coleção de avaliações e sugestões
+        após a configuração das permissões.</p>
+    </section>
+
+    <section class="cliente-painel">
+      <h2>🛠️ Suporte técnico</h2>
+      <p>Se tiver problemas com a conta ou com um pedido, entre em
+        contato com o suporte da sorveteria.</p>
+    </section>
+  </main>
+
+  <footer id="rodape">
+    <p>🍦 Creamy — pedidos e atendimento</p>
+  </footer>
+</body>
+</html>
