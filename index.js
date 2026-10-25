@@ -1,96 +1,157 @@
+# functions/index.js — Creamy
+
+```javascript
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
-const { getFirestore } = require("firebase-admin/firestore");
+
+const {
+  initializeApp,
+  getApps
+} = require("firebase-admin/app");
+
 const { getAuth } = require("firebase-admin/auth");
-const { initializeApp, getApps } = require("firebase-admin/app");
+
+const {
+  getFirestore,
+  FieldValue
+} = require("firebase-admin/firestore");
+
+// =====================================================
+// 1. INICIALIZAÇÃO DO FIREBASE
+// =====================================================
 
 if (getApps().length === 0) {
   initializeApp();
 }
 
 const db = getFirestore();
+const auth = getAuth();
 
-exports.verificarMigracaoCreamy = onCall(async (request) => {
-  if (!request.auth) {
-    throw new HttpsError(
-      "unauthenticated",
-      "Faça login antes de verificar a migração."
-    );
-  }
+const REGIAO = "southamerica-east1";
 
-  const cargo = request.auth.token.cargo;
-  const sorveteriaId = request.auth.token.sorveteriaId;
+const CARGOS_FUNCIONARIOS = new Set([
+  "estoque",
+  "vendas",
+  "cozinha"
+]);
 
-  if (cargo !== "dono" || !sorveteriaId) {
-    throw new HttpsError(
-      "permission-denied",
-      "Somente o dono pode verificar a migração."
-    );
-  }
+const MODALIDADES_PEDIDO = new Set([
+  "consumo_local",
+  "retirada",
+  "entrega"
+]);
 
-  const uidAntigo = request.auth.uid;
-  const origem = db.collection("usuarios").doc(uidAntigo);
-  const destino = db.collection("Sorveterias").doc(sorveteriaId);
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-  const nomes = ["produtos", "vendas", "retiradas"];
-  const resultado = {};
+// =====================================================
+// 2. VERIFICAR A MIGRAÇÃO DOS DADOS ANTIGOS
+// Esta função apenas conta documentos. Não copia,
+// modifica nem apaga dados.
+// =====================================================
 
-  for (const nome of nomes) {
-    const [antigos, novos] = await Promise.all([
-      origem.collection(nome).get(),
-      destino.collection(nome).get()
-    ]);
-
-    resultado[nome] = {
-      quantidadeAntiga: antigos.size,
-      quantidadeNova: novos.size
-    };
-  }
-
-  const personalizacaoAntiga = await origem
-    .collection("configuracoes")
-    .doc("personalizacao")
-    .get();
-
-  const personalizacaoNova = await destino
-    .collection("configuracoes")
-    .doc("personalizacao")
-    .get();
-
-  resultado.personalizacao = {
-    existeAntiga: personalizacaoAntiga.exists,
-    existeNova: personalizacaoNova.exists
-  };
-
-  return {
-    sucesso: true,
-    sorveteriaId,
-    uidAntigo,
-    resultado
-  };
-});
-
-
-const { getAuth } = require("firebase-admin/auth");
-
-exports.criarFuncionario = onCall(
-  {
-    region: "southamerica-east1",
-    enforceAppCheck: false
-  },
+exports.verificarMigracaoCreamy = onCall(
+  { region: REGIAO },
   async (request) => {
     if (!request.auth) {
       throw new HttpsError(
         "unauthenticated",
-        "Você precisa entrar na conta do proprietário."
+        "Faça login para verificar a migração."
+      );
+    }
+
+    const { cargo, sorveteriaId } = request.auth.token;
+
+    if (
+      cargo !== "dono" ||
+      typeof sorveteriaId !== "string" ||
+      !sorveteriaId
+    ) {
+      throw new HttpsError(
+        "permission-denied",
+        "Somente o proprietário pode verificar a migração."
+      );
+    }
+
+    const uidAntigo = request.auth.uid;
+
+    const origem = db
+      .collection("usuarios")
+      .doc(uidAntigo);
+
+    const destino = db
+      .collection("Sorveterias")
+      .doc(sorveteriaId);
+
+    const nomesColecoes = [
+      "produtos",
+      "vendas",
+      "retiradas"
+    ];
+
+    const resultado = {};
+
+    for (const nome of nomesColecoes) {
+      const [antigos, novos] = await Promise.all([
+        origem.collection(nome).get(),
+        destino.collection(nome).get()
+      ]);
+
+      resultado[nome] = {
+        quantidadeAntiga: antigos.size,
+        quantidadeNova: novos.size
+      };
+    }
+
+    const [personalizacaoAntiga, personalizacaoNova] =
+      await Promise.all([
+        origem
+          .collection("configuracoes")
+          .doc("personalizacao")
+          .get(),
+
+        destino
+          .collection("configuracoes")
+          .doc("personalizacao")
+          .get()
+      ]);
+
+    resultado.personalizacao = {
+      existeAntiga: personalizacaoAntiga.exists,
+      existeNova: personalizacaoNova.exists
+    };
+
+    return {
+      sucesso: true,
+      sorveteriaId,
+      uidAntigo,
+      resultado
+    };
+  }
+);
+
+// =====================================================
+// 3. CRIAR FUNCIONÁRIO
+// Somente uma conta com cargo "dono" pode chamar.
+// O cargo e a sorveteria são obtidos do token validado,
+// nunca do cargo enviado pelo navegador.
+// =====================================================
+
+exports.criarFuncionario = onCall(
+  { region: REGIAO },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError(
+        "unauthenticated",
+        "Entre na conta do proprietário."
       );
     }
 
     const claims = request.auth.token;
+    const sorveteriaId = claims.sorveteriaId;
 
     if (
       claims.cargo !== "dono" ||
-      typeof claims.sorveteriaId !== "string" ||
-      !claims.sorveteriaId
+      typeof sorveteriaId !== "string" ||
+      !sorveteriaId
     ) {
       throw new HttpsError(
         "permission-denied",
@@ -99,6 +160,12 @@ exports.criarFuncionario = onCall(
     }
 
     const dados = request.data || {};
+
+    const nome =
+      typeof dados.nome === "string"
+        ? dados.nome.trim()
+        : "";
+
     const email =
       typeof dados.email === "string"
         ? dados.email.trim().toLowerCase()
@@ -111,16 +178,17 @@ exports.criarFuncionario = onCall(
 
     const cargo = dados.cargo;
 
-    const cargosPermitidos = [
-      "estoque",
-      "vendas",
-      "cozinha"
-    ];
+    if (nome.length < 2 || nome.length > 100) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Informe um nome entre 2 e 100 caracteres."
+      );
+    }
 
     if (
       !email ||
       email.length > 254 ||
-      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+      !EMAIL_RE.test(email)
     ) {
       throw new HttpsError(
         "invalid-argument",
@@ -131,43 +199,42 @@ exports.criarFuncionario = onCall(
     if (senha.length < 12 || senha.length > 128) {
       throw new HttpsError(
         "invalid-argument",
-        "Use uma senha temporária com pelo menos 12 caracteres."
+        "A senha inicial deve ter entre 12 e 128 caracteres."
       );
     }
 
-    if (!cargosPermitidos.includes(cargo)) {
+    if (!CARGOS_FUNCIONARIOS.has(cargo)) {
       throw new HttpsError(
         "invalid-argument",
-        "Escolha um cargo de funcionário válido."
+        "O cargo deve ser estoque, vendas ou cozinha."
       );
     }
 
-    let usuarioCriado = null;
+    let novoUsuario = null;
 
     try {
-      usuarioCriado = await getAuth().createUser({
+      novoUsuario = await auth.createUser({
         email,
         password: senha,
+        displayName: nome,
         emailVerified: false,
         disabled: false
       });
 
-      await getAuth().setCustomUserClaims(
-        usuarioCriado.uid,
-        {
-          cargo,
-          sorveteriaId: claims.sorveteriaId
-        }
-      );
+      await auth.setCustomUserClaims(novoUsuario.uid, {
+        cargo,
+        sorveteriaId
+      });
 
-      const referencia = db
+      const funcionarioRef = db
         .collection("Sorveterias")
-        .doc(claims.sorveteriaId)
+        .doc(sorveteriaId)
         .collection("funcionarios")
-        .doc(usuarioCriado.uid);
+        .doc(novoUsuario.uid);
 
-      await referencia.set({
-        uid: usuarioCriado.uid,
+      await funcionarioRef.create({
+        uid: novoUsuario.uid,
+        nome,
         email,
         cargo,
         ativo: true,
@@ -175,24 +242,47 @@ exports.criarFuncionario = onCall(
         criadoEm: FieldValue.serverTimestamp()
       });
 
+      await db
+        .collection("usuarios")
+        .doc(novoUsuario.uid)
+        .set({
+          uid: novoUsuario.uid,
+          nome,
+          email,
+          cargo,
+          sorveteriaId,
+          criadoEm: FieldValue.serverTimestamp()
+        });
+
       return {
         sucesso: true,
-        uid: usuarioCriado.uid,
+        uid: novoUsuario.uid,
+        nome,
         email,
         cargo
       };
     } catch (erro) {
       console.error("Erro ao criar funcionário:", erro);
 
-      // Evita deixar uma conta criada sem o cadastro administrativo
-      // quando ocorre uma falha durante a configuração inicial.
-      if (usuarioCriado) {
+      if (novoUsuario) {
         try {
-          await getAuth().deleteUser(usuarioCriado.uid);
-        } catch (erroExclusao) {
+          await db
+            .collection("Sorveterias")
+            .doc(sorveteriaId)
+            .collection("funcionarios")
+            .doc(novoUsuario.uid)
+            .delete();
+
+          await db
+            .collection("usuarios")
+            .doc(novoUsuario.uid)
+            .delete();
+
+          await auth.deleteUser(novoUsuario.uid);
+        } catch (erroLimpeza) {
           console.error(
-            "Não foi possível remover a conta incompleta:",
-            erroExclusao
+            "Erro ao limpar cadastro incompleto:",
+            erroLimpeza
           );
         }
       }
@@ -216,410 +306,369 @@ exports.criarFuncionario = onCall(
   }
 );
 
-const { onCall, HttpsError } = require('firebase-functions/v2/https');
-const { initializeApp } = require('firebase-admin/app');
-const { getAuth } = require('firebase-admin/auth');
-const { getFirestore, FieldValue } = require('firebase-admin/firestore');
+// =====================================================
+// 4. CRIAR PEDIDO E DESCONTAR O ESTOQUE
+// O preço é consultado no Firestore, não no navegador.
+// Todas as leituras da transação acontecem antes
+// de qualquer gravação.
+// =====================================================
 
-initializeApp();
-const db = getFirestore();
-const auth = getAuth();
-
-const CARGOS_PERMITIDOS = new Set(['estoque', 'vendas', 'cozinha']);
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-exports.criarFuncionario = onCall(async (request) => {
-  if (!request.auth) {
-    throw new HttpsError('unauthenticated', 'Faça login como proprietário.');
-  }
-
-  const { sorveteriaId, nome, email, senha, cargo } = request.data || {};
-  if (typeof sorveteriaId !== 'string' || !/^[a-zA-Z0-9_-]{3,80}$/.test(sorveteriaId)) {
-    throw new HttpsError('invalid-argument', 'Código da sorveteria inválido.');
-  }
-  if (typeof nome !== 'string' || nome.trim().length < 2 || nome.trim().length > 100) {
-    throw new HttpsError('invalid-argument', 'Informe o nome do funcionário.');
-  }
-  if (typeof email !== 'string' || !EMAIL_RE.test(email) || email.length > 254) {
-    throw new HttpsError('invalid-argument', 'Informe um e-mail válido.');
-  }
-  if (typeof senha !== 'string' || senha.length < 8) {
-    throw new HttpsError('invalid-argument', 'A senha inicial deve ter pelo menos 8 caracteres.');
-  }
-  if (!CARGOS_PERMITIDOS.has(cargo)) {
-    throw new HttpsError('invalid-argument', 'Cargo inválido. Use estoque, vendas ou cozinha.');
-  }
-
-  const donoRef = db.doc(`Sorveterias/${sorveteriaId}/funcionarios/${request.auth.uid}`);
-  const donoSnap = await donoRef.get();
-  if (!donoSnap.exists || donoSnap.data().cargo !== 'dono' || donoSnap.data().ativo !== true) {
-    throw new HttpsError('permission-denied', 'Somente o proprietário ativo pode criar funcionários.');
-  }
-
-  let novoUsuario;
-  try {
-    novoUsuario = await auth.createUser({
-      email: email.trim().toLowerCase(),
-      password: senha,
-      displayName: nome.trim(),
-      disabled: false
-    });
-
-    await db.doc(`Sorveterias/${sorveteriaId}/funcionarios/${novoUsuario.uid}`).create({
-      uid: novoUsuario.uid,
-      nome: nome.trim(),
-      email: email.trim().toLowerCase(),
-      cargo,
-      ativo: true,
-      criadoPor: request.auth.uid,
-      criadoEm: FieldValue.serverTimestamp()
-    });
-
-    await db.doc(`usuarios/${novoUsuario.uid}`).set({
-      email: email.trim().toLowerCase(),
-      nome: nome.trim(),
-      sorveteriaId,
-      cargo,
-      dataCriacao: new Date().toISOString().slice(0, 10),
-      criadoEm: FieldValue.serverTimestamp()
-    });
-
-    return { sucesso: true, uid: novoUsuario.uid, email: email.trim().toLowerCase(), cargo };
-  } catch (erro) {
-    if (novoUsuario?.uid) {
-      await auth.deleteUser(novoUsuario.uid).catch(() => {});
-      await db.doc(`Sorveterias/${sorveteriaId}/funcionarios/${novoUsuario.uid}`).delete().catch(() => {});
-      await db.doc(`usuarios/${novoUsuario.uid}`).delete().catch(() => {});
+exports.criarPedido = onCall(
+  { region: REGIAO },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError(
+        "unauthenticated",
+        "Faça login para realizar um pedido."
+      );
     }
-    if (erro instanceof HttpsError) throw erro;
-    if (erro.code === 'auth/email-already-exists') {
-      throw new HttpsError('already-exists', 'Esse e-mail já possui uma conta.');
-    }
-    console.error('Erro ao criar funcionário:', erro);
-    throw new HttpsError('internal', 'Não foi possível criar o funcionário. Confira os registros da função.');
-  }
-});
 
-const { onCall, HttpsError } = require("firebase-functions/v2/https");
-const { initializeApp } = require("firebase-admin/app");
-const {
-  getFirestore,
-  FieldValue
-} = require("firebase-admin/firestore");
+    const claims = request.auth.token;
+    const cargo = claims.cargo;
+    const sorveteriaId = claims.sorveteriaId;
 
-initializeApp();
-
-const db = getFirestore();
-
-const MODALIDADES = [
-  "consumo_local",
-  "retirada",
-  "entrega"
-];
-
-const CARGOS_QUE_VENDEM = [
-  "dono",
-  "vendas",
-  "cliente"
-];
-
-
-exports.criarPedido = onCall(async (request) => {
-  if (!request.auth) {
-    throw new HttpsError(
-      "unauthenticated",
-      "Faça login para realizar um pedido."
-    );
-  }
-
-  const cargo = request.auth.token.cargo;
-  const sorveteriaId = request.auth.token.sorveteriaId;
-
-  if (
-    !sorveteriaId ||
-    !["dono", "vendas", "cliente"].includes(cargo)
-  ) {
-    throw new HttpsError(
-      "permission-denied",
-      "Sua conta não pode realizar pedidos."
-    );
-  }
-
-  const {
-    itens,
-    modalidade,
-    nomeCliente,
-    endereco,
-    observacoes
-  } = request.data || {};
-
-  const modalidadesPermitidas = [
-    "consumo_local",
-    "retirada",
-    "entrega"
-  ];
-
-  if (
-    !Array.isArray(itens) ||
-    itens.length === 0 ||
-    itens.length > 50
-  ) {
-    throw new HttpsError(
-      "invalid-argument",
-      "Adicione produtos válidos ao pedido."
-    );
-  }
-
-  if (!modalidadesPermitidas.includes(modalidade)) {
-    throw new HttpsError(
-      "invalid-argument",
-      "Escolha uma modalidade válida."
-    );
-  }
-
-  if (
-    typeof nomeCliente !== "string" ||
-    nomeCliente.trim().length < 2 ||
-    nomeCliente.trim().length > 100
-  ) {
-    throw new HttpsError(
-      "invalid-argument",
-      "Informe um nome válido."
-    );
-  }
-
-  if (
-    modalidade === "entrega" &&
-    (
-      typeof endereco !== "string" ||
-      endereco.trim().length < 5 ||
-      endereco.trim().length > 300
-    )
-  ) {
-    throw new HttpsError(
-      "invalid-argument",
-      "Informe um endereço válido para a entrega."
-    );
-  }
-
-  if (
-    typeof observacoes !== "string" ||
-    observacoes.length > 500
-  ) {
-    throw new HttpsError(
-      "invalid-argument",
-      "As observações devem ter até 500 caracteres."
-    );
-  }
-
-  // Agrupa produtos repetidos e valida as quantidades.
-  const quantidades = new Map();
-
-  for (const item of itens) {
     if (
-      !item ||
-      typeof item.produtoId !== "string" ||
-      item.produtoId.length === 0 ||
-      item.produtoId.length > 150 ||
-      !Number.isSafeInteger(item.quantidade) ||
-      item.quantidade < 1
+      typeof sorveteriaId !== "string" ||
+      !sorveteriaId ||
+      !["dono", "vendas", "cliente"].includes(cargo)
+    ) {
+      throw new HttpsError(
+        "permission-denied",
+        "Sua conta não pode realizar pedidos."
+      );
+    }
+
+    const {
+      itens,
+      modalidade,
+      nomeCliente,
+      endereco,
+      observacoes
+    } = request.data || {};
+
+    if (
+      !Array.isArray(itens) ||
+      itens.length === 0 ||
+      itens.length > 50
     ) {
       throw new HttpsError(
         "invalid-argument",
-        "Um dos produtos ou quantidades é inválido."
+        "Adicione entre 1 e 50 itens ao pedido."
       );
     }
 
-    const totalAnterior = quantidades.get(item.produtoId) || 0;
-    const novoTotal = totalAnterior + item.quantidade;
-
-    if (!Number.isSafeInteger(novoTotal)) {
+    if (!MODALIDADES_PEDIDO.has(modalidade)) {
       throw new HttpsError(
         "invalid-argument",
-        "Quantidade inválida."
+        "Escolha uma modalidade válida."
       );
     }
 
-    quantidades.set(item.produtoId, novoTotal);
+    if (
+      typeof nomeCliente !== "string" ||
+      nomeCliente.trim().length < 2 ||
+      nomeCliente.trim().length > 100
+    ) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Informe um nome válido."
+      );
+    }
+
+    const enderecoNormalizado =
+      typeof endereco === "string" ? endereco.trim() : "";
+
+    if (
+      modalidade === "entrega" &&
+      (
+        enderecoNormalizado.length < 5 ||
+        enderecoNormalizado.length > 300
+      )
+    ) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Informe um endereço válido para a entrega."
+      );
+    }
+
+    const observacoesNormalizadas =
+      typeof observacoes === "string"
+        ? observacoes.trim()
+        : "";
+
+    if (
+      typeof observacoes !== "undefined" &&
+      typeof observacoes !== "string"
+    ) {
+      throw new HttpsError(
+        "invalid-argument",
+        "As observações são inválidas."
+      );
+    }
+
+    if (observacoesNormalizadas.length > 500) {
+      throw new HttpsError(
+        "invalid-argument",
+        "As observações podem ter até 500 caracteres."
+      );
+    }
+
+    // Agrupar itens repetidos e validar quantidades.
+    const quantidades = new Map();
+
+    for (const item of itens) {
+      if (
+        !item ||
+        typeof item.produtoId !== "string" ||
+        item.produtoId.length === 0 ||
+        item.produtoId.length > 150 ||
+        !Number.isSafeInteger(item.quantidade) ||
+        item.quantidade < 1
+      ) {
+        throw new HttpsError(
+          "invalid-argument",
+          "Um dos produtos ou quantidades é inválido."
+        );
+      }
+
+      const anterior = quantidades.get(item.produtoId) || 0;
+      const total = anterior + item.quantidade;
+
+      if (!Number.isSafeInteger(total)) {
+        throw new HttpsError(
+          "invalid-argument",
+          "A quantidade solicitada é inválida."
+        );
+      }
+
+      quantidades.set(item.produtoId, total);
+    }
+
+    const sorveteriaRef = db
+      .collection("Sorveterias")
+      .doc(sorveteriaId);
+
+    const pedidoRef = sorveteriaRef
+      .collection("pedidos")
+      .doc();
+
+    const resultado = await db.runTransaction(
+      async (transacao) => {
+        const produtosLidos = [];
+
+        // PRIMEIRA ETAPA: somente leituras.
+        for (const [produtoId, quantidade] of quantidades) {
+          const produtoRef = sorveteriaRef
+            .collection("produtos")
+            .doc(produtoId);
+
+          const documento = await transacao.get(produtoRef);
+
+          if (!documento.exists) {
+            throw new HttpsError(
+              "not-found",
+              "Um dos produtos não foi encontrado."
+            );
+          }
+
+          const produto = documento.data();
+
+          if (produto.ativo === false) {
+            throw new HttpsError(
+              "failed-precondition",
+              `O produto "${produto.nome || produtoId}" está indisponível.`
+            );
+          }
+
+          const estoqueAtual = produto.quantidade;
+          const preco = produto.preco;
+
+          if (
+            !Number.isSafeInteger(estoqueAtual) ||
+            estoqueAtual < 0 ||
+            typeof preco !== "number" ||
+            !Number.isFinite(preco) ||
+            preco < 0
+          ) {
+            throw new HttpsError(
+              "failed-precondition",
+              `O estoque ou preço de "${produto.nome || produtoId}" é inválido.`
+            );
+          }
+
+          if (estoqueAtual < quantidade) {
+            throw new HttpsError(
+              "failed-precondition",
+              `Estoque insuficiente para "${produto.nome || produtoId}".`
+            );
+          }
+
+          const subtotal = preco * quantidade;
+
+          if (!Number.isFinite(subtotal)) {
+            throw new HttpsError(
+              "failed-precondition",
+              "Não foi possível calcular o valor do pedido."
+            );
+          }
+
+          produtosLidos.push({
+            referencia: produtoRef,
+            produtoId,
+            nome: String(produto.nome || "Produto"),
+            quantidade,
+            estoqueAtual,
+            preco,
+            subtotal
+          });
+        }
+
+        const receita = produtosLidos.reduce(
+          (total, item) => total + item.subtotal,
+          0
+        );
+
+        if (!Number.isFinite(receita)) {
+          throw new HttpsError(
+            "failed-precondition",
+            "O total do pedido é inválido."
+          );
+        }
+
+        const itensValidados = produtosLidos.map((item) => ({
+          produtoId: item.produtoId,
+          nome: item.nome,
+          quantidade: item.quantidade,
+          precoUnitario: item.preco,
+          subtotal: item.subtotal
+        }));
+
+        // SEGUNDA ETAPA: somente gravações.
+        for (const item of produtosLidos) {
+          transacao.update(item.referencia, {
+            quantidade: item.estoqueAtual - item.quantidade
+          });
+        }
+
+        transacao.set(pedidoRef, {
+          clienteUid: request.auth.uid,
+          clienteNome: nomeCliente.trim(),
+          itens: itensValidados,
+          modalidade,
+          endereco:
+            modalidade === "entrega"
+              ? enderecoNormalizado
+              : "",
+          observacoes: observacoesNormalizadas,
+          receita,
+          status: "recebido",
+          criadoEm: FieldValue.serverTimestamp()
+        });
+
+        return {
+          pedidoId: pedidoRef.id,
+          receita
+        };
+      }
+    );
+
+    return {
+      sucesso: true,
+      pedidoId: resultado.pedidoId,
+      receita: resultado.receita
+    };
   }
+);
 
-  const sorveteriaRef = db
-    .collection("Sorveterias")
-    .doc(sorveteriaId);
+// =====================================================
+// 5. ATUALIZAR O STATUS DO PEDIDO
+// A alteração ocorre no servidor e verifica o status
+// atual para impedir transições fora da sequência.
+// =====================================================
 
-  const pedidoRef = sorveteriaRef
-    .collection("pedidos")
-    .doc();
+exports.atualizarStatusPedido = onCall(
+  { region: REGIAO },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError(
+        "unauthenticated",
+        "Faça login para atualizar o pedido."
+      );
+    }
 
-  const resultado = await db.runTransaction(async (transacao) => {
-    const itensValidados = [];
-    let receita = 0;
+    const claims = request.auth.token;
+    const cargo = claims.cargo;
+    const sorveteriaId = claims.sorveteriaId;
 
-    // Primeiro, todas as leituras; depois, as gravações.
-    for (const [produtoId, quantidade] of quantidades) {
-      const produtoRef = sorveteriaRef
-        .collection("produtos")
-        .doc(produtoId);
+    if (
+      typeof sorveteriaId !== "string" ||
+      !sorveteriaId ||
+      !["dono", "vendas", "cozinha"].includes(cargo)
+    ) {
+      throw new HttpsError(
+        "permission-denied",
+        "Você não tem permissão para atualizar pedidos."
+      );
+    }
 
-      const documento = await transacao.get(produtoRef);
+    const { pedidoId, novoStatus } = request.data || {};
+
+    const transicoes = {
+      recebido: ["preparando"],
+      preparando: ["pronto"],
+      pronto: ["entregue", "retirado"]
+    };
+
+    if (
+      typeof pedidoId !== "string" ||
+      pedidoId.length === 0 ||
+      pedidoId.length > 150 ||
+      !Object.hasOwn(transicoes, novoStatus)
+    ) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Pedido ou status inválido."
+      );
+    }
+
+    const pedidoRef = db
+      .collection("Sorveterias")
+      .doc(sorveteriaId)
+      .collection("pedidos")
+      .doc(pedidoId);
+
+    await db.runTransaction(async (transacao) => {
+      const documento = await transacao.get(pedidoRef);
 
       if (!documento.exists) {
         throw new HttpsError(
           "not-found",
-          "Um dos produtos não foi encontrado."
+          "Pedido não encontrado."
         );
       }
 
-      const produto = documento.data();
-      const estoqueAtual = Number(produto.quantidade);
-      const preco = Number(produto.preco);
+      const statusAtual = documento.data().status;
 
-      if (
-        !Number.isSafeInteger(estoqueAtual) ||
-        estoqueAtual < 0 ||
-        !Number.isFinite(preco) ||
-        preco < 0
-      ) {
+      if (!transicoes[statusAtual]?.includes(novoStatus)) {
         throw new HttpsError(
           "failed-precondition",
-          `Os dados de estoque ou preço de "${produto.nome || produtoId}" são inválidos.`
+          "Essa mudança de status não é permitida."
         );
       }
 
-      if (estoqueAtual < quantidade) {
-        throw new HttpsError(
-          "failed-precondition",
-          `Estoque insuficiente para "${produto.nome || produtoId}".`
-        );
-      }
-
-      const subtotal = preco * quantidade;
-
-      if (!Number.isFinite(subtotal)) {
-        throw new HttpsError(
-          "failed-precondition",
-          "Não foi possível calcular o pedido."
-        );
-      }
-
-      receita += subtotal;
-
-      itensValidados.push({
-        produtoId,
-        nome: String(produto.nome || "Produto"),
-        quantidade,
-        precoUnitario: preco,
-        subtotal
+      transacao.update(pedidoRef, {
+        status: novoStatus,
+        atualizadoEm: FieldValue.serverTimestamp(),
+        atualizadoPor: request.auth.uid
       });
-
-      transacao.update(produtoRef, {
-        quantidade: estoqueAtual - quantidade
-      });
-    }
-
-    if (!Number.isFinite(receita)) {
-      throw new HttpsError(
-        "failed-precondition",
-        "O total do pedido é inválido."
-      );
-    }
-
-    transacao.set(pedidoRef, {
-      clienteUid: request.auth.uid,
-      clienteNome: nomeCliente.trim(),
-      itens: itensValidados,
-      modalidade,
-      endereco: modalidade === "entrega"
-        ? endereco.trim()
-        : "",
-      observacoes: observacoes.trim(),
-      receita,
-      status: "recebido",
-      criadoEm: FieldValue.serverTimestamp()
     });
 
     return {
-      pedidoId: pedidoRef.id,
-      receita
+      sucesso: true,
+      pedidoId,
+      novoStatus
     };
-  });
-
-  return {
-    sucesso: true,
-    pedidoId: resultado.pedidoId,
-    receita: resultado.receita
-  };
-});
-
-
-
-exports.atualizarStatusPedido = onCall(async (request) => {
-  if (!request.auth) {
-    throw new HttpsError(
-      "unauthenticated",
-      "Faça login para atualizar o pedido."
-    );
   }
+);
+```
 
-  const cargo = request.auth.token.cargo;
-  const sorveteriaId = request.auth.token.sorveteriaId;
-
-  if (
-    !sorveteriaId ||
-    !["dono", "vendas", "cozinha"].includes(cargo)
-  ) {
-    throw new HttpsError(
-      "permission-denied",
-      "Você não tem permissão para atualizar pedidos."
-    );
-  }
-
-  const { pedidoId, novoStatus } = request.data || {};
-
-  const statusPermitidos = {
-    recebido: ["preparando"],
-    preparando: ["pronto"],
-    pronto: ["entregue", "retirado"]
-  };
-
-  if (
-    typeof pedidoId !== "string" ||
-    !Object.hasOwn(statusPermitidos, novoStatus)
-  ) {
-    throw new HttpsError(
-      "invalid-argument",
-      "Pedido ou status inválido."
-    );
-  }
-
-  const pedidoRef = db
-    .collection("Sorveterias")
-    .doc(sorveteriaId)
-    .collection("pedidos")
-    .doc(pedidoId);
-
-  await db.runTransaction(async (transacao) => {
-    const pedido = await transacao.get(pedidoRef);
-
-    if (!pedido.exists) {
-      throw new HttpsError("not-found", "Pedido não encontrado.");
-    }
-
-    const statusAtual = pedido.data().status;
-
-    if (!statusPermitidos[statusAtual]?.includes(novoStatus)) {
-      throw new HttpsError(
-        "failed-precondition",
-        "Essa mudança de status não é permitida."
-      );
-    }
-
-    transacao.update(pedidoRef, {
-      status: novoStatus,
-      atualizadoEm: new Date().toISOString(),
-      atualizadoPor: request.auth.uid
-    });
-  });
-
-  return { sucesso: true, pedidoId, novoStatus };
-});
