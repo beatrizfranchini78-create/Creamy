@@ -1,0 +1,63 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#e95fa5">
+  <title>Creamy — Painel do dono</title>
+  <link rel="manifest" href="./manifest.json">
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <header class="cabecalho">
+    <h1>🍦 Creamy</h1>
+    <p>Painel do proprietário</p>
+  </header>
+
+  <main class="container">
+    <section class="painel">
+      <h2>Resumo financeiro</h2>
+      <p>Os valores serão carregados do banco após a validação de acesso.</p>
+
+      <div class="grid-form">
+        <article class="card-resumo">
+          <h3>Receita</h3>
+          <p id="receitaTotal">—</p>
+        </article>
+
+        <article class="card-resumo">
+          <h3>Custos</h3>
+          <p id="custosTotal">—</p>
+        </article>
+
+        <article class="card-resumo">
+          <h3>Lucro</h3>
+          <p id="lucroTotal">—</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="painel">
+      <h2>Gerenciamento</h2>
+      <p><a href="./funcionarios.html">Gerenciar funcionários</a></p>
+      <p><a href="./estoque.html">Abrir estoque</a></p>
+      <p><a href="./vendas.html">Abrir vendas</a></p>
+      <p><a href="./cozinha.html">Abrir cozinha</a></p>
+      <p><a href="./cliente.html">Portal do cliente</a></p>
+    </section>
+
+    <section class="painel">
+      <h2>Ajuda e suporte</h2>
+      <button type="button" onclick="alert('Manual do proprietário em preparação.')">
+        Abrir manual
+      </button>
+      <button type="button" onclick="alert('Configure aqui o canal de suporte da Creamy.')">
+        Suporte técnico
+      </button>
+    </section>
+  </main>
+
+  <script type="module" src="./firebase-v2/dono.js"></script>
+</body>
+</html>
