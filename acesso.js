@@ -1,6 +1,9 @@
 
-import { initializeApp, getApps, getApp } from
-  "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
+import {
+  initializeApp,
+  getApps,
+  getApp
+} from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
 
 import {
   getAuth,
@@ -9,13 +12,13 @@ import {
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
 
 import {
-  getFirestore,
-  doc,
-  getDoc
+  getFirestore
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 
-export const functions = getFunctions(app);
-export { httpsCallable };
+import {
+  getFunctions,
+  httpsCallable
+} from "https://www.gstatic.com/firebasejs/12.18.0/firebase-functions.js";
 
 // Use a mesma configuração Firebase do script.js original.
 const firebaseConfig = {
@@ -33,6 +36,9 @@ const app = getApps().length
 
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+export const functions = getFunctions(app);
+
+export { httpsCallable };
 
 const paginasPorCargo = {
   dono: "dono.html",
@@ -44,7 +50,12 @@ const paginasPorCargo = {
 
 export function verificarAcesso(cargosPermitidos) {
   return new Promise((resolve) => {
-    const cancelar = onAuthStateChanged(auth, async (usuario) => {
+    let primeiraVerificacao = true;
+    let cancelar = () => {};
+
+    cancelar = onAuthStateChanged(auth, async (usuario) => {
+      if (!primeiraVerificacao) return;
+      primeiraVerificacao = false;
       cancelar();
 
       if (!usuario) {
@@ -54,8 +65,6 @@ export function verificarAcesso(cargosPermitidos) {
       }
 
       try {
-        // A função administrativa deve atribuir estas claims
-        // depois de validar a conta e o cargo no servidor.
         const token = await usuario.getIdTokenResult(true);
         const cargo = token.claims.cargo;
         const sorveteriaId = token.claims.sorveteriaId;
