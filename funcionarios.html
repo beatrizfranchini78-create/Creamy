@@ -1,0 +1,119 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#e95fa5">
+  <title>Creamy | Funcionários</title>
+  <link rel="stylesheet" href="./style.css">
+  <style>
+    .pagina-funcionarios {
+      width: min(100% - 32px, 760px);
+      margin: 24px auto;
+    }
+
+    .painel-funcionarios {
+      padding: 22px;
+      margin-bottom: 20px;
+      border-radius: 16px;
+      background: var(--cor-cartoes, #fff);
+      color: var(--cor-texto, #343434);
+      box-shadow: 0 3px 12px #00000012;
+    }
+
+    .painel-funcionarios label {
+      display: block;
+      margin-top: 14px;
+    }
+
+    .painel-funcionarios input,
+    .painel-funcionarios select {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 12px;
+      margin-top: 6px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      font: inherit;
+    }
+
+    .painel-funcionarios button {
+      margin-top: 18px;
+      padding: 12px 16px;
+      border: 0;
+      border-radius: 8px;
+      background: var(--cor-botoes, #d64a91);
+      color: white;
+      cursor: pointer;
+      font: inherit;
+    }
+  </style>
+</head>
+<body>
+  <header id="fachada">
+    <h1>🍦 Creamy</h1>
+    <p>Gerenciamento de funcionários</p>
+  </header>
+
+  <main class="pagina-funcionarios">
+    <section class="painel-funcionarios">
+      <h2>Adicionar funcionário</h2>
+      <p>
+        Somente o proprietário poderá cadastrar contas
+        para a equipe.
+      </p>
+
+      <form id="formFuncionario">
+        <label for="emailFuncionario">E-mail do funcionário</label>
+        <input
+          id="emailFuncionario"
+          type="email"
+          autocomplete="off"
+          maxlength="254"
+          required
+        >
+
+        <label for="senhaFuncionario">Senha temporária</label>
+        <input
+          id="senhaFuncionario"
+          type="password"
+          autocomplete="new-password"
+          minlength="12"
+          maxlength="128"
+          required
+        >
+
+        <label for="cargoFuncionario">Função</label>
+        <select id="cargoFuncionario" required>
+          <option value="estoque">Estoque</option>
+          <option value="vendas">Vendas</option>
+          <option value="cozinha">Cozinha</option>
+        </select>
+
+        <button type="submit" disabled>
+          Criar funcionário
+        </button>
+        <p id="mensagemFuncionario" role="status" aria-live="polite">
+          A integração segura com o Firebase ainda precisa ser ativada.
+        </p>
+      </form>
+    </section>
+
+    <section class="painel-funcionarios">
+      <h2>Equipe cadastrada</h2>
+      <p id="listaFuncionarios">
+        A lista será exibida depois da integração com o Firestore.
+      </p>
+    </section>
+
+    <section class="painel-funcionarios">
+      <h2>Ajuda e suporte</h2>
+      <p>
+        Em caso de dificuldade de acesso, procure o proprietário
+        da sorveteria para conferir a conta e a função atribuída.
+      </p>
+    </section>
+  </main>
+</body>
+</html>
