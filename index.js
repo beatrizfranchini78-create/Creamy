@@ -323,261 +323,233 @@ const CARGOS_QUE_VENDEM = [
   "cliente"
 ];
 
-exports.criarPedido = onCall(
-  {
-    region: "southamerica-east1",
-    enforceAppCheck: false
-  },
-  async (request) => {
-    if (!request.auth) {
-      throw new HttpsError(
-        "unauthenticated",
-        "Entre na sua conta antes de fazer um pedido."
-      );
-    }
 
-    const claims = request.auth.token;
-    const cargo = claims.cargo;
-    const sorveteriaId = claims.sorveteriaId;
+exports.criarPedido = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError(
+      "unauthenticated",
+      "Faça login para realizar um pedido."
+    );
+  }
 
+  const cargo = request.auth.token.cargo;
+  const sorveteriaId = request.auth.token.sorveteriaId;
+
+  if (
+    !sorveteriaId ||
+    !["dono", "vendas", "cliente"].includes(cargo)
+  ) {
+    throw new HttpsError(
+      "permission-denied",
+      "Sua conta não pode realizar pedidos."
+    );
+  }
+
+  const {
+    itens,
+    modalidade,
+    nomeCliente,
+    endereco,
+    observacoes
+  } = request.data || {};
+
+  const modalidadesPermitidas = [
+    "consumo_local",
+    "retirada",
+    "entrega"
+  ];
+
+  if (
+    !Array.isArray(itens) ||
+    itens.length === 0 ||
+    itens.length > 50
+  ) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Adicione produtos válidos ao pedido."
+    );
+  }
+
+  if (!modalidadesPermitidas.includes(modalidade)) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Escolha uma modalidade válida."
+    );
+  }
+
+  if (
+    typeof nomeCliente !== "string" ||
+    nomeCliente.trim().length < 2 ||
+    nomeCliente.trim().length > 100
+  ) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Informe um nome válido."
+    );
+  }
+
+  if (
+    modalidade === "entrega" &&
+    (
+      typeof endereco !== "string" ||
+      endereco.trim().length < 5 ||
+      endereco.trim().length > 300
+    )
+  ) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Informe um endereço válido para a entrega."
+    );
+  }
+
+  if (
+    typeof observacoes !== "string" ||
+    observacoes.length > 500
+  ) {
+    throw new HttpsError(
+      "invalid-argument",
+      "As observações devem ter até 500 caracteres."
+    );
+  }
+
+  // Agrupa produtos repetidos e valida as quantidades.
+  const quantidades = new Map();
+
+  for (const item of itens) {
     if (
-      !CARGOS_QUE_VENDEM.includes(cargo) ||
-      typeof sorveteriaId !== "string" ||
-      !sorveteriaId
+      !item ||
+      typeof item.produtoId !== "string" ||
+      item.produtoId.length === 0 ||
+      item.produtoId.length > 150 ||
+      !Number.isSafeInteger(item.quantidade) ||
+      item.quantidade < 1
     ) {
       throw new HttpsError(
-        "permission-denied",
-        "Sua conta não tem permissão para fazer pedidos."
+        "invalid-argument",
+        "Um dos produtos ou quantidades é inválido."
       );
     }
 
-    const dados = request.data || {};
-    const modalidade = dados.modalidade;
-    const itensRecebidos = dados.itens;
+    const totalAnterior = quantidades.get(item.produtoId) || 0;
+    const novoTotal = totalAnterior + item.quantidade;
 
-    if (!MODALIDADES.includes(modalidade)) {
+    if (!Number.isSafeInteger(novoTotal)) {
       throw new HttpsError(
         "invalid-argument",
-        "Escolha consumo local, retirada ou entrega."
+        "Quantidade inválida."
       );
     }
 
-    if (
-      !Array.isArray(itensRecebidos) ||
-      itensRecebidos.length === 0 ||
-      itensRecebidos.length > 50
-    ) {
-      throw new HttpsError(
-        "invalid-argument",
-        "O pedido precisa ter entre 1 e 50 itens."
-      );
-    }
+    quantidades.set(item.produtoId, novoTotal);
+  }
 
-    const quantidadesPorProduto = new Map();
+  const sorveteriaRef = db
+    .collection("Sorveterias")
+    .doc(sorveteriaId);
 
-    for (const item of itensRecebidos) {
+  const pedidoRef = sorveteriaRef
+    .collection("pedidos")
+    .doc();
+
+  const resultado = await db.runTransaction(async (transacao) => {
+    const itensValidados = [];
+    let receita = 0;
+
+    // Primeiro, todas as leituras; depois, as gravações.
+    for (const [produtoId, quantidade] of quantidades) {
+      const produtoRef = sorveteriaRef
+        .collection("produtos")
+        .doc(produtoId);
+
+      const documento = await transacao.get(produtoRef);
+
+      if (!documento.exists) {
+        throw new HttpsError(
+          "not-found",
+          "Um dos produtos não foi encontrado."
+        );
+      }
+
+      const produto = documento.data();
+      const estoqueAtual = Number(produto.quantidade);
+      const preco = Number(produto.preco);
+
       if (
-        !item ||
-        typeof item.produtoId !== "string" ||
-        !item.produtoId ||
-        !Number.isSafeInteger(item.quantidade) ||
-        item.quantidade <= 0
+        !Number.isSafeInteger(estoqueAtual) ||
+        estoqueAtual < 0 ||
+        !Number.isFinite(preco) ||
+        preco < 0
       ) {
         throw new HttpsError(
-          "invalid-argument",
-          "Um dos produtos ou quantidades é inválido."
+          "failed-precondition",
+          `Os dados de estoque ou preço de "${produto.nome || produtoId}" são inválidos.`
         );
       }
 
-      const anterior =
-        quantidadesPorProduto.get(item.produtoId) || 0;
-
-      const total = anterior + item.quantidade;
-
-      if (!Number.isSafeInteger(total) || total > 10000) {
+      if (estoqueAtual < quantidade) {
         throw new HttpsError(
-          "invalid-argument",
-          "A quantidade solicitada é muito alta."
+          "failed-precondition",
+          `Estoque insuficiente para "${produto.nome || produtoId}".`
         );
       }
 
-      quantidadesPorProduto.set(item.produtoId, total);
-    }
+      const subtotal = preco * quantidade;
 
-    const pedidosRef = db
-      .collection("Sorveterias")
-      .doc(sorveteriaId)
-      .collection("pedidos");
-
-    const produtosRef = db
-      .collection("Sorveterias")
-      .doc(sorveteriaId)
-      .collection("produtos");
-
-    const novoPedidoRef = pedidosRef.doc();
-
-    const nomeCliente =
-      typeof dados.nomeCliente === "string"
-        ? dados.nomeCliente.trim().slice(0, 100)
-        : "";
-
-    const observacoes =
-      typeof dados.observacoes === "string"
-        ? dados.observacoes.trim().slice(0, 500)
-        : "";
-
-    const endereco =
-      modalidade === "entrega" &&
-      typeof dados.endereco === "string"
-        ? dados.endereco.trim().slice(0, 300)
-        : "";
-
-    if (modalidade === "entrega" && !endereco) {
-      throw new HttpsError(
-        "invalid-argument",
-        "Informe o endereço para entrega."
-      );
-    }
-
-    try {
-      const resultado = await db.runTransaction(
-        async (transaction) => {
-          const referencias = Array.from(
-            quantidadesPorProduto.keys()
-          ).map((id) => produtosRef.doc(id));
-
-          // Ler todos os documentos antes de escrever.
-          const documentos = [];
-
-          for (const referencia of referencias) {
-            documentos.push(
-              await transaction.get(referencia)
-            );
-          }
-
-          const itensConfirmados = [];
-          let total = 0;
-
-          for (let i = 0; i < documentos.length; i++) {
-            const documento = documentos[i];
-            const produtoId = Array.from(
-              quantidadesPorProduto.keys()
-            )[i];
-
-            const quantidade =
-              quantidadesPorProduto.get(produtoId);
-
-            if (!documento.exists) {
-              throw new HttpsError(
-                "not-found",
-                "Um dos produtos não foi encontrado."
-              );
-            }
-
-            const produto = documento.data();
-
-            if (
-              produto.ativo === false ||
-              !Number.isFinite(Number(produto.quantidade)) ||
-              !Number.isFinite(Number(produto.preco)) ||
-              Number(produto.preco) < 0
-            ) {
-              throw new HttpsError(
-                "failed-precondition",
-                `O produto ${produto.nome || produtoId} não está disponível.`
-              );
-            }
-
-            if (Number(produto.quantidade) < quantidade) {
-              throw new HttpsError(
-                "failed-precondition",
-                `Estoque insuficiente para ${produto.nome || produtoId}.`
-              );
-            }
-
-            const preco = Number(produto.preco);
-            const subtotal = preco * quantidade;
-
-            if (!Number.isFinite(subtotal)) {
-              throw new HttpsError(
-                "invalid-argument",
-                "O valor de um item é inválido."
-              );
-            }
-
-            total += subtotal;
-
-            itensConfirmados.push({
-              produtoId,
-              nome: String(produto.nome || "Produto"),
-              quantidade,
-              unidade: String(produto.unidade || "un."),
-              preco,
-              subtotal
-            });
-          }
-
-          if (!Number.isFinite(total)) {
-            throw new HttpsError(
-              "invalid-argument",
-              "Não foi possível calcular o total."
-            );
-          }
-
-          // Desconta o estoque e registra o pedido juntos.
-          for (let i = 0; i < documentos.length; i++) {
-            const produto = documentos[i].data();
-            const produtoId = Array.from(
-              quantidadesPorProduto.keys()
-            )[i];
-
-            transaction.update(referencias[i], {
-              quantidade:
-                Number(produto.quantidade) -
-                quantidadesPorProduto.get(produtoId)
-            });
-          }
-
-          transaction.set(novoPedidoRef, {
-            clienteUid: request.auth.uid,
-            nomeCliente,
-            modalidade,
-            endereco,
-            observacoes,
-            itens: itensConfirmados,
-            total: Number(total.toFixed(2)),
-            status: "recebido",
-            criadoEm: FieldValue.serverTimestamp(),
-            atualizadoEm: FieldValue.serverTimestamp()
-          });
-
-          return {
-            pedidoId: novoPedidoRef.id,
-            total: Number(total.toFixed(2))
-          };
-        }
-      );
-
-      return {
-        sucesso: true,
-        pedidoId: resultado.pedidoId,
-        total: resultado.total
-      };
-    } catch (erro) {
-      if (erro instanceof HttpsError) {
-        throw erro;
+      if (!Number.isFinite(subtotal)) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Não foi possível calcular o pedido."
+        );
       }
 
-      console.error("Falha ao criar pedido:", erro);
+      receita += subtotal;
 
+      itensValidados.push({
+        produtoId,
+        nome: String(produto.nome || "Produto"),
+        quantidade,
+        precoUnitario: preco,
+        subtotal
+      });
+
+      transacao.update(produtoRef, {
+        quantidade: estoqueAtual - quantidade
+      });
+    }
+
+    if (!Number.isFinite(receita)) {
       throw new HttpsError(
-        "internal",
-        "Não foi possível registrar o pedido. Tente novamente."
+        "failed-precondition",
+        "O total do pedido é inválido."
       );
     }
-  }
-);
 
+    transacao.set(pedidoRef, {
+      clienteUid: request.auth.uid,
+      clienteNome: nomeCliente.trim(),
+      itens: itensValidados,
+      modalidade,
+      endereco: modalidade === "entrega"
+        ? endereco.trim()
+        : "",
+      observacoes: observacoes.trim(),
+      receita,
+      status: "recebido",
+      criadoEm: FieldValue.serverTimestamp()
+    });
+
+    return {
+      pedidoId: pedidoRef.id,
+      receita
+    };
+  });
+
+  return {
+    sucesso: true,
+    pedidoId: resultado.pedidoId,
+    receita: resultado.receita
+  };
+});
 
 
 
