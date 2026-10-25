@@ -1,4 +1,3 @@
-
 import {
   onAuthStateChanged,
   signOut
@@ -294,3 +293,22 @@ botaoSair.addEventListener("click", async () => {
   await signOut(auth);
   window.location.replace("./index.html");
 });
+
+
+
+const atualizarStatus = httpsCallable(
+  functions,
+  "atualizarStatusPedido"
+);
+
+async function mudarStatus(pedidoId, novoStatus) {
+  try {
+    await atualizarStatus({ pedidoId, novoStatus });
+  } catch (erro) {
+    console.error("Erro ao atualizar o pedido:", erro);
+    alert(
+      "Não foi possível atualizar o pedido. " +
+      "Confira sua permissão e tente novamente."
+    );
+  }
+}
