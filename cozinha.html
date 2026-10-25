@@ -1,0 +1,87 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#e95fa5">
+  <title>Creamy — Cozinha</title>
+  <link rel="stylesheet" href="./style.css">
+  <style>
+    .cozinha-pagina {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    .cozinha-topo,
+    .pedido-cabecalho {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .cozinha-lista {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+      margin-top: 20px;
+    }
+
+    .pedido-card {
+      background: var(--cor-cartoes, #fff);
+      color: var(--cor-texto, #343434);
+      border: 1px solid #e8c7d9;
+      border-radius: 16px;
+      padding: 18px;
+      box-shadow: 0 4px 14px #0000000d;
+    }
+
+    .pedido-card h2 {
+      color: var(--cor-titulos, #d64a91);
+    }
+
+    .pedido-itens {
+      padding-left: 22px;
+      line-height: 1.8;
+    }
+
+    .pedido-status {
+      font-weight: bold;
+      padding: 6px 10px;
+      border-radius: 8px;
+      background: #f7d6e8;
+    }
+
+    .cozinha-aviso {
+      padding: 14px;
+      border-radius: 10px;
+      background: var(--cor-fundo, #f7d6e8);
+    }
+  </style>
+</head>
+<body>
+  <main class="cozinha-pagina">
+    <header class="cozinha-topo">
+      <div>
+        <h1>🍦 Creamy — Cozinha</h1>
+        <p>Pedidos recebidos e andamento dos preparos.</p>
+      </div>
+      <button id="botaoSair" type="button">Sair da conta</button>
+    </header>
+
+    <p id="mensagemCozinha" class="cozinha-aviso">
+      Verificando acesso...
+    </p>
+
+    <section>
+      <h2>Pedidos aguardando preparo</h2>
+      <div id="listaPedidos" class="cozinha-lista"></div>
+    </section>
+  </main>
+
+  <script type="module" src="./firebase-v2/cozinha.js"></script>
+</body>
+</html>
