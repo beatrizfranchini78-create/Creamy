@@ -1,0 +1,104 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function autenticado() { return request.auth != null; }
+    function funcionario(id) {
+      return autenticado()
+        && exists(/databases/$(database)/documents/Sorveterias/$(id)/funcionarios/$(request.auth.uid))
+        && get(/databases/$(database)/documents/Sorveterias/$(id)/funcionarios/$(request.auth.uid)).data.ativo == true;
+    }
+    function cargo(id) {
+      return funcionario(id)
+        ? get(/databases/$(database)/documents/Sorveterias/$(id)/funcionarios/$(request.auth.uid)).data.cargo
+        : 'sem_acesso';
+    }
+    function dono(id) { return cargo(id) == 'dono'; }
+    function equipe(id) { return cargo(id) in ['dono', 'estoque', 'vendas', 'cozinha']; }
+
+    // Perfil legado: o usuário pode ler o próprio perfil, mas não pode promover a si mesmo.
+    match /usuarios/{uid} {
+      allow read: if autenticado() && request.auth.uid == uid;
+      allow create: if autenticado() && request.auth.uid == uid
+        && !request.resource.data.keys().hasAny(['cargo', 'sorveteriaId', 'papel', 'role']);
+      allow update: if autenticado() && request.auth.uid == uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['email', 'nome', 'fotoURL', 'ultimaEntrada']);
+      allow delete: if false;
+      match /{subcaminho=**} {
+        allow read, write: if autenticado() && request.auth.uid == uid;
+      }
+    }
+
+    match /Sorveterias/{id} {
+      allow read: if funcionario(id);
+      allow write: if dono(id);
+
+      match /funcionarios/{uid} {
+        allow read: if autenticado() && request.auth.uid == uid || dono(id);
+        // Funcionários são criados/alterados pelo servidor (Admin SDK), não pelo navegador.
+        allow write: if false;
+      }
+
+      match /produtos/{produtoId} {
+        allow read: if funcionario(id) || (autenticado() && exists(/databases/$(database)/documents/Sorveterias/$(id)/clientes/$(request.auth.uid)));
+        allow create, update, delete: if cargo(id) in ['dono', 'estoque'];
+      }
+
+      match /vendas/{vendaId} {
+        allow read: if cargo(id) in ['dono', 'vendas'];
+        allow create: if cargo(id) in ['dono', 'vendas'];
+        allow update, delete: if dono(id);
+      }
+
+      match /retiradas/{retiradaId} {
+        allow read, create: if cargo(id) in ['dono', 'estoque'];
+        allow update, delete: if dono(id);
+      }
+
+      match /pedidos/{pedidoId} {
+        allow read: if cargo(id) in ['dono', 'vendas', 'cozinha']
+          || (autenticado() && resource.data.clienteUid == request.auth.uid);
+        allow create: if autenticado() && (
+          cargo(id) in ['dono', 'vendas']
+          || (exists(/databases/$(database)/documents/Sorveterias/$(id)/clientes/$(request.auth.uid))
+            && request.resource.data.clienteUid == request.auth.uid
+            && request.resource.data.status == 'recebido')
+        );
+        // A cozinha só pode alterar o estado e horários operacionais do pedido.
+        allow update: if cargo(id) in ['dono', 'vendas']
+          || (cargo(id) == 'cozinha'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'atualizadoEm', 'iniciadoEm', 'prontoEm']))
+          || (autenticado() && resource.data.clienteUid == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['avaliacaoEnviada']));
+        allow delete: if dono(id);
+      }
+
+      match /clientes/{uid} {
+        allow read: if (autenticado() && request.auth.uid == uid) || dono(id) || cargo(id) == 'vendas';
+        allow create: if autenticado() && request.auth.uid == uid
+          && request.resource.data.uid == uid;
+        allow update: if (autenticado() && request.auth.uid == uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nome', 'telefone', 'endereco', 'atualizadoEm']))
+          || dono(id);
+        allow delete: if dono(id);
+      }
+
+      match /sugestoes/{sugestaoId} {
+        allow create: if autenticado() && request.resource.data.clienteUid == request.auth.uid
+          && exists(/databases/$(database)/documents/Sorveterias/$(id)/clientes/$(request.auth.uid));
+        allow read, update, delete: if dono(id);
+      }
+
+      match /avaliacoes/{avaliacaoId} {
+        allow create: if autenticado() && request.resource.data.clienteUid == request.auth.uid
+          && exists(/databases/$(database)/documents/Sorveterias/$(id)/clientes/$(request.auth.uid));
+        allow read: if true;
+        allow update, delete: if dono(id);
+      }
+
+      match /configuracoes/{configId} {
+        allow read: if funcionario(id) || (autenticado() && exists(/databases/$(database)/documents/Sorveterias/$(id)/clientes/$(request.auth.uid)));
+        allow write: if dono(id);
+      }
+    }
+  }
+}

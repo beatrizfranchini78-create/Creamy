@@ -1,0 +1,11 @@
+{
+  "name": "creamy-v2-functions",
+  "description": "Funções confiáveis do Creamy para contas de funcionários",
+  "private": true,
+  "engines": { "node": "20" },
+  "main": "index.js",
+  "dependencies": {
+    "firebase-admin": "^13.0.0",
+    "firebase-functions": "^6.0.0"
+  }
+}
