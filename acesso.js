@@ -14,6 +14,9 @@ import {
   getDoc
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 
+export const functions = getFunctions(app);
+export { httpsCallable };
+
 // Use a mesma configuração Firebase do script.js original.
 const firebaseConfig = {
   apiKey: "AIzaSyCdebXzi_q8LuhCrKPI4P0YDWkRF1NQTuU",
