@@ -1,21 +1,22 @@
+
 import {
-  onAuthStateChanged,
-  signOut
+  onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
 
 import {
   collection,
   onSnapshot,
   query,
-  orderBy,
-  doc,
-  updateDoc,
-  serverTimestamp
+  orderBy
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 
 import {
   auth,
-  db
+  db,
+  functions,
+  httpsCallable,
+  verificarAcesso,
+  sairDaConta
 } from "./acesso.js";
 
 const mensagem = document.getElementById("mensagemCozinha");
@@ -24,6 +25,7 @@ const botaoSair = document.getElementById("botaoSair");
 
 let pararPedidos = null;
 let usuarioValidado = false;
+let acessoAtual = null;
 
 const statusPermitidos = {
   recebido: "Recebido",
@@ -32,26 +34,56 @@ const statusPermitidos = {
 };
 
 function mostrarMensagem(texto) {
-  mensagem.textContent = texto;
+  if (mensagem) mensagem.textContent = texto;
 }
 
 function criarElemento(tag, texto, classe) {
   const elemento = document.createElement(tag);
   elemento.textContent = texto;
 
-  if (classe) {
-    elemento.className = classe;
-  }
+  if (classe) elemento.className = classe;
 
   return elemento;
 }
 
 function formatarData(valor) {
-  if (!valor || typeof valor.toDate !== "function") {
-    return "Horário não informado";
+  if (!valor) return "Horário não informado";
+
+  if (typeof valor.toDate === "function") {
+    return valor.toDate().toLocaleString("pt-BR");
   }
 
-  return valor.toDate().toLocaleString("pt-BR");
+  return "Horário não informado";
+}
+
+async function mudarStatus(pedidoId, novoStatus, botao) {
+  if (!usuarioValidado || !acessoAtual) {
+    alert("Sua sessão ainda não foi validada.");
+    return;
+  }
+
+  if (botao) botao.disabled = true;
+
+  try {
+    const atualizarStatusPedido = httpsCallable(
+      functions,
+      "atualizarStatusPedido"
+    );
+
+    await atualizarStatusPedido({
+      pedidoId,
+      novoStatus
+    });
+  } catch (erro) {
+    console.error("Erro ao atualizar pedido:", erro);
+
+    alert(
+      "Não foi possível atualizar o pedido. " +
+      "Verifique sua conexão, suas permissões e se a função foi publicada."
+    );
+  } finally {
+    if (botao) botao.disabled = false;
+  }
 }
 
 function montarPedido(id, pedido) {
@@ -76,6 +108,12 @@ function montarPedido(id, pedido) {
       `Recebido: ${formatarData(pedido.criadoEm)}`
     )
   );
+
+  if (pedido.clienteNome) {
+    card.append(
+      criarElemento("p", `Cliente: ${pedido.clienteNome}`)
+    );
+  }
 
   if (pedido.observacoes) {
     card.append(
@@ -113,25 +151,14 @@ function montarPedido(id, pedido) {
   proximos.forEach((proximoStatus) => {
     const botao = document.createElement("button");
     botao.type = "button";
+
     botao.textContent =
       proximoStatus === "preparando"
         ? "Iniciar preparo"
         : "Marcar como pronto";
 
-    botao.addEventListener("click", async () => {
-      botao.disabled = true;
-
-      try {
-        await atualizarStatus(id, pedido.status, proximoStatus);
-      } catch (erro) {
-        console.error(erro);
-        alert(
-          "Não foi possível atualizar o pedido. " +
-          "Confira sua permissão e tente novamente."
-        );
-      } finally {
-        botao.disabled = false;
-      }
+    botao.addEventListener("click", () => {
+      mudarStatus(id, proximoStatus, botao);
     });
 
     controles.append(botao);
@@ -141,58 +168,8 @@ function montarPedido(id, pedido) {
   return card;
 }
 
-async function atualizarStatus(id, statusAtual, novoStatus) {
-  if (!usuarioValidado) {
-    throw new Error("Usuário ainda não validado.");
-  }
-
-  const usuario = auth.currentUser;
-
-  if (!usuario) {
-    throw new Error("Sessão encerrada.");
-  }
-
-  // Atualização otimista não é usada: o Firestore confirma a gravação.
-  const token = await usuario.getIdTokenResult(true);
-
-  if (
-    token.claims.cargo !== "cozinha" &&
-    token.claims.cargo !== "dono"
-  ) {
-    throw new Error("Cargo sem permissão para atualizar pedidos.");
-  }
-
-  if (
-    !Object.prototype.hasOwnProperty.call(
-      statusPermitidos,
-      statusAtual
-    ) ||
-    !Object.prototype.hasOwnProperty.call(
-      statusPermitidos,
-      novoStatus
-    )
-  ) {
-    throw new Error("Status inválido.");
-  }
-
-  const caminho = doc(
-    db,
-    "Sorveterias",
-    token.claims.sorveteriaId,
-    "pedidos",
-    id
-  );
-
-  await updateDoc(caminho, {
-    status: novoStatus,
-    atualizadoEm: serverTimestamp()
-  });
-}
-
 function ouvirPedidos(sorveteriaId) {
-  if (pararPedidos) {
-    pararPedidos();
-  }
+  if (pararPedidos) pararPedidos();
 
   const referencia = collection(
     db,
@@ -213,6 +190,7 @@ function ouvirPedidos(sorveteriaId) {
 
       const pedidosAtivos = snapshot.docs.filter((registro) => {
         const pedido = registro.data();
+
         return ["recebido", "preparando"].includes(pedido.status);
       });
 
@@ -224,6 +202,8 @@ function ouvirPedidos(sorveteriaId) {
             "cozinha-aviso"
           )
         );
+
+        mostrarMensagem("Não há pedidos ativos.");
         return;
       }
 
@@ -239,76 +219,49 @@ function ouvirPedidos(sorveteriaId) {
     },
     (erro) => {
       console.error("Erro ao acompanhar pedidos:", erro);
+
       mostrarMensagem(
-        "Não foi possível carregar os pedidos. Verifique as permissões do Firebase."
+        "Não foi possível carregar os pedidos. " +
+        "Verifique as permissões do Firebase."
       );
     }
   );
 }
 
-onAuthStateChanged(auth, async (usuario) => {
+async function iniciarCozinha() {
+  const acesso = await verificarAcesso(["cozinha", "dono"]);
+
+  if (!acesso) return;
+
+  acessoAtual = acesso;
+  usuarioValidado = true;
+
+  ouvirPedidos(acesso.sorveteriaId);
+}
+
+if (botaoSair) {
+  botaoSair.addEventListener("click", async () => {
+    usuarioValidado = false;
+
+    if (pararPedidos) {
+      pararPedidos();
+      pararPedidos = null;
+    }
+
+    await sairDaConta();
+  });
+}
+
+iniciarCozinha().catch((erro) => {
+  console.error("Erro ao iniciar cozinha:", erro);
+  mostrarMensagem("Não foi possível iniciar a cozinha.");
+});
+
+window.addEventListener("pagehide", () => {
   usuarioValidado = false;
 
   if (pararPedidos) {
     pararPedidos();
     pararPedidos = null;
   }
-
-  if (!usuario) {
-    window.location.replace("./index.html");
-    return;
-  }
-
-  try {
-    const token = await usuario.getIdTokenResult(true);
-    const cargo = token.claims.cargo;
-    const sorveteriaId = token.claims.sorveteriaId;
-
-    if (
-      !["cozinha", "dono"].includes(cargo) ||
-      typeof sorveteriaId !== "string" ||
-      !sorveteriaId
-    ) {
-      mostrarMensagem("Sua conta não tem acesso à cozinha.");
-      await signOut(auth);
-      window.location.replace("./index.html");
-      return;
-    }
-
-    usuarioValidado = true;
-    ouvirPedidos(sorveteriaId);
-  } catch (erro) {
-    console.error(erro);
-    mostrarMensagem(
-      "Não foi possível validar sua conta. Entre em contato com o proprietário."
-    );
-  }
 });
-
-botaoSair.addEventListener("click", async () => {
-  if (pararPedidos) {
-    pararPedidos();
-  }
-
-  await signOut(auth);
-  window.location.replace("./index.html");
-});
-
-
-
-const atualizarStatus = httpsCallable(
-  functions,
-  "atualizarStatusPedido"
-);
-
-async function mudarStatus(pedidoId, novoStatus) {
-  try {
-    await atualizarStatus({ pedidoId, novoStatus });
-  } catch (erro) {
-    console.error("Erro ao atualizar o pedido:", erro);
-    alert(
-      "Não foi possível atualizar o pedido. " +
-      "Confira sua permissão e tente novamente."
-    );
-  }
-}
