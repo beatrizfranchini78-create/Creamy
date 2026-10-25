@@ -577,3 +577,77 @@ exports.criarPedido = onCall(
     }
   }
 );
+
+
+
+
+exports.atualizarStatusPedido = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError(
+      "unauthenticated",
+      "Faça login para atualizar o pedido."
+    );
+  }
+
+  const cargo = request.auth.token.cargo;
+  const sorveteriaId = request.auth.token.sorveteriaId;
+
+  if (
+    !sorveteriaId ||
+    !["dono", "vendas", "cozinha"].includes(cargo)
+  ) {
+    throw new HttpsError(
+      "permission-denied",
+      "Você não tem permissão para atualizar pedidos."
+    );
+  }
+
+  const { pedidoId, novoStatus } = request.data || {};
+
+  const statusPermitidos = {
+    recebido: ["preparando"],
+    preparando: ["pronto"],
+    pronto: ["entregue", "retirado"]
+  };
+
+  if (
+    typeof pedidoId !== "string" ||
+    !Object.hasOwn(statusPermitidos, novoStatus)
+  ) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Pedido ou status inválido."
+    );
+  }
+
+  const pedidoRef = db
+    .collection("Sorveterias")
+    .doc(sorveteriaId)
+    .collection("pedidos")
+    .doc(pedidoId);
+
+  await db.runTransaction(async (transacao) => {
+    const pedido = await transacao.get(pedidoRef);
+
+    if (!pedido.exists) {
+      throw new HttpsError("not-found", "Pedido não encontrado.");
+    }
+
+    const statusAtual = pedido.data().status;
+
+    if (!statusPermitidos[statusAtual]?.includes(novoStatus)) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Essa mudança de status não é permitida."
+      );
+    }
+
+    transacao.update(pedidoRef, {
+      status: novoStatus,
+      atualizadoEm: new Date().toISOString(),
+      atualizadoPor: request.auth.uid
+    });
+  });
+
+  return { sucesso: true, pedidoId, novoStatus };
+});
