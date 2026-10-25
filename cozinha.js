@@ -198,7 +198,7 @@ function ouvirPedidos(sorveteriaId) {
         lista.append(
           criarElemento(
             "p",
-            "Nenhum pedido aguardando preparo.",
+            "Nenhum pedido na fila de preparo.",
             "cozinha-aviso"
           )
         );
@@ -214,7 +214,7 @@ function ouvirPedidos(sorveteriaId) {
       });
 
       mostrarMensagem(
-        `${pedidosAtivos.length} pedido(s) aguardando preparo ou em preparo.`
+       `${pedidosAtivos.length} pedido(s) na fila de preparo.`
       );
     },
     (erro) => {
