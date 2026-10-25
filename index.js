@@ -1,3 +1,74 @@
+const { onCall, HttpsError } = require("firebase-functions/v2/https");
+const { getFirestore } = require("firebase-admin/firestore");
+const { getAuth } = require("firebase-admin/auth");
+const { initializeApp, getApps } = require("firebase-admin/app");
+
+if (getApps().length === 0) {
+  initializeApp();
+}
+
+const db = getFirestore();
+
+exports.verificarMigracaoCreamy = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError(
+      "unauthenticated",
+      "Faça login antes de verificar a migração."
+    );
+  }
+
+  const cargo = request.auth.token.cargo;
+  const sorveteriaId = request.auth.token.sorveteriaId;
+
+  if (cargo !== "dono" || !sorveteriaId) {
+    throw new HttpsError(
+      "permission-denied",
+      "Somente o dono pode verificar a migração."
+    );
+  }
+
+  const uidAntigo = request.auth.uid;
+  const origem = db.collection("usuarios").doc(uidAntigo);
+  const destino = db.collection("Sorveterias").doc(sorveteriaId);
+
+  const nomes = ["produtos", "vendas", "retiradas"];
+  const resultado = {};
+
+  for (const nome of nomes) {
+    const [antigos, novos] = await Promise.all([
+      origem.collection(nome).get(),
+      destino.collection(nome).get()
+    ]);
+
+    resultado[nome] = {
+      quantidadeAntiga: antigos.size,
+      quantidadeNova: novos.size
+    };
+  }
+
+  const personalizacaoAntiga = await origem
+    .collection("configuracoes")
+    .doc("personalizacao")
+    .get();
+
+  const personalizacaoNova = await destino
+    .collection("configuracoes")
+    .doc("personalizacao")
+    .get();
+
+  resultado.personalizacao = {
+    existeAntiga: personalizacaoAntiga.exists,
+    existeNova: personalizacaoNova.exists
+  };
+
+  return {
+    sucesso: true,
+    sorveteriaId,
+    uidAntigo,
+    resultado
+  };
+});
+
 
 const { getAuth } = require("firebase-admin/auth");
 
