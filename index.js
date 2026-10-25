@@ -1,3 +1,150 @@
+
+const { getAuth } = require("firebase-admin/auth");
+
+exports.criarFuncionario = onCall(
+  {
+    region: "southamerica-east1",
+    enforceAppCheck: false
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError(
+        "unauthenticated",
+        "Você precisa entrar na conta do proprietário."
+      );
+    }
+
+    const claims = request.auth.token;
+
+    if (
+      claims.cargo !== "dono" ||
+      typeof claims.sorveteriaId !== "string" ||
+      !claims.sorveteriaId
+    ) {
+      throw new HttpsError(
+        "permission-denied",
+        "Somente o proprietário pode criar funcionários."
+      );
+    }
+
+    const dados = request.data || {};
+    const email =
+      typeof dados.email === "string"
+        ? dados.email.trim().toLowerCase()
+        : "";
+
+    const senha =
+      typeof dados.senha === "string"
+        ? dados.senha
+        : "";
+
+    const cargo = dados.cargo;
+
+    const cargosPermitidos = [
+      "estoque",
+      "vendas",
+      "cozinha"
+    ];
+
+    if (
+      !email ||
+      email.length > 254 ||
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+    ) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Informe um e-mail válido."
+      );
+    }
+
+    if (senha.length < 12 || senha.length > 128) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Use uma senha temporária com pelo menos 12 caracteres."
+      );
+    }
+
+    if (!cargosPermitidos.includes(cargo)) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Escolha um cargo de funcionário válido."
+      );
+    }
+
+    let usuarioCriado = null;
+
+    try {
+      usuarioCriado = await getAuth().createUser({
+        email,
+        password: senha,
+        emailVerified: false,
+        disabled: false
+      });
+
+      await getAuth().setCustomUserClaims(
+        usuarioCriado.uid,
+        {
+          cargo,
+          sorveteriaId: claims.sorveteriaId
+        }
+      );
+
+      const referencia = db
+        .collection("Sorveterias")
+        .doc(claims.sorveteriaId)
+        .collection("funcionarios")
+        .doc(usuarioCriado.uid);
+
+      await referencia.set({
+        uid: usuarioCriado.uid,
+        email,
+        cargo,
+        ativo: true,
+        criadoPor: request.auth.uid,
+        criadoEm: FieldValue.serverTimestamp()
+      });
+
+      return {
+        sucesso: true,
+        uid: usuarioCriado.uid,
+        email,
+        cargo
+      };
+    } catch (erro) {
+      console.error("Erro ao criar funcionário:", erro);
+
+      // Evita deixar uma conta criada sem o cadastro administrativo
+      // quando ocorre uma falha durante a configuração inicial.
+      if (usuarioCriado) {
+        try {
+          await getAuth().deleteUser(usuarioCriado.uid);
+        } catch (erroExclusao) {
+          console.error(
+            "Não foi possível remover a conta incompleta:",
+            erroExclusao
+          );
+        }
+      }
+
+      if (erro instanceof HttpsError) {
+        throw erro;
+      }
+
+      if (erro.code === "auth/email-already-exists") {
+        throw new HttpsError(
+          "already-exists",
+          "Já existe uma conta com esse e-mail."
+        );
+      }
+
+      throw new HttpsError(
+        "internal",
+        "Não foi possível criar o funcionário."
+      );
+    }
+  }
+);
+
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { initializeApp } = require('firebase-admin/app');
 const { getAuth } = require('firebase-admin/auth');
