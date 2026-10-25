@@ -102,3 +102,128 @@ service cloud.firestore {
     }
   }
 }
+
+
+
+
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function autenticado() {
+      return request.auth != null;
+    }
+
+    function donoDaSorveteria(sorveteriaId) {
+      return autenticado()
+        && request.auth.token.cargo == "dono"
+        && request.auth.token.sorveteriaId == sorveteriaId;
+    }
+
+    function funcionario(sorveteriaId, cargo) {
+      return autenticado()
+        && request.auth.token.cargo == cargo
+        && request.auth.token.sorveteriaId == sorveteriaId;
+    }
+
+    function pertenceASorveteria(sorveteriaId) {
+      return autenticado()
+        && request.auth.token.sorveteriaId == sorveteriaId;
+    }
+
+    // Dados antigos: manter temporariamente durante a migração.
+    match /usuarios/{userId} {
+      allow read, write: if autenticado()
+        && request.auth.uid == userId;
+
+      match /{documento=**} {
+        allow read, write: if autenticado()
+          && request.auth.uid == userId;
+      }
+    }
+
+    // Estrutura compartilhada da sorveteria.
+    match /Sorveterias/{sorveteriaId} {
+
+      // Produtos: cliente pode consultar o cardápio;
+      // estoque e dono podem alterar produtos.
+      match /produtos/{produtoId} {
+        allow read: if pertenceASorveteria(sorveteriaId);
+
+        allow create, update, delete: if
+          donoDaSorveteria(sorveteriaId)
+          || funcionario(sorveteriaId, "estoque");
+      }
+
+      // Pedidos: funcionários autorizados acompanham a fila.
+      // O cliente só pode ler os próprios pedidos.
+      // A criação do pedido será feita pela função confiável.
+      match /pedidos/{pedidoId} {
+        allow create: if false;
+
+        allow read: if
+          pertenceASorveteria(sorveteriaId)
+          && request.auth.token.cargo in
+            ["dono", "vendas", "cozinha", "estoque"]
+          || (
+            autenticado()
+            && request.auth.token.sorveteriaId == sorveteriaId
+            && resource.data.clienteUid == request.auth.uid
+          );
+
+        // Atualizações de status devem ser feitas por
+        // uma função de servidor validada.
+        allow update, delete: if false;
+      }
+
+      // Dados financeiros completos: somente o dono.
+      match /vendas/{vendaId} {
+        allow read, write: if donoDaSorveteria(sorveteriaId);
+      }
+
+      // Estoque pode registrar retiradas; dono pode consultar tudo.
+      match /retiradas/{retiradaId} {
+        allow read: if donoDaSorveteria(sorveteriaId)
+          || funcionario(sorveteriaId, "estoque");
+
+        allow create: if funcionario(sorveteriaId, "estoque")
+          || donoDaSorveteria(sorveteriaId);
+
+        allow update, delete: if donoDaSorveteria(sorveteriaId);
+      }
+
+      // Cadastro e administração de funcionários.
+      match /funcionarios/{funcionarioId} {
+        allow read, write: if donoDaSorveteria(sorveteriaId);
+      }
+
+      // Personalização compartilhada.
+      match /configuracoes/{configuracaoId} {
+        allow read: if pertenceASorveteria(sorveteriaId);
+        allow write: if donoDaSorveteria(sorveteriaId);
+      }
+
+      // Avaliações e sugestões.
+      match /avaliacoes/{avaliacaoId} {
+        allow read: if donoDaSorveteria(sorveteriaId);
+        allow create: if autenticado()
+          && request.auth.token.cargo == "cliente"
+          && request.auth.token.sorveteriaId == sorveteriaId
+          && request.resource.data.clienteUid == request.auth.uid;
+        allow update, delete: if donoDaSorveteria(sorveteriaId);
+      }
+
+      match /sugestoes/{sugestaoId} {
+        allow read: if donoDaSorveteria(sorveteriaId);
+        allow create: if autenticado()
+          && request.auth.token.cargo == "cliente"
+          && request.auth.token.sorveteriaId == sorveteriaId
+          && request.resource.data.clienteUid == request.auth.uid;
+        allow update, delete: if donoDaSorveteria(sorveteriaId);
+      }
+    }
+  }
+}
+
