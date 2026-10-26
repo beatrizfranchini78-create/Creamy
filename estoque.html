@@ -1,0 +1,430 @@
+```html
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#e94a92">
+  <title>Estoque | Creamy</title>
+
+  <style>
+    :root {
+      --rosa: #d64a91;
+      --rosa-claro: #fff0f7;
+      --fundo: #fff8fc;
+      --texto: #343434;
+      --borda: #f0d4e3;
+      --branco: #ffffff;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--fundo);
+      color: var(--texto);
+      font-family: Arial, Helvetica, sans-serif;
+    }
+
+    header {
+      background: var(--branco);
+      border-bottom: 1px solid var(--borda);
+      padding: 18px 5%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .marca {
+      color: var(--rosa);
+      font-size: 27px;
+      font-weight: 800;
+      margin: 0;
+    }
+
+    .subtitulo {
+      margin: 5px 0 0;
+      color: #777;
+      font-size: 14px;
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+    }
+
+    button {
+      cursor: pointer;
+      border: 0;
+      border-radius: 10px;
+      padding: 11px 15px;
+      font-weight: 700;
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .botao-sair {
+      color: var(--rosa);
+      background: var(--rosa-claro);
+      border: 1px solid var(--borda);
+    }
+
+    main {
+      width: min(1100px, 92%);
+      margin: 28px auto 50px;
+    }
+
+    .boas-vindas {
+      margin-bottom: 22px;
+    }
+
+    .boas-vindas h2 {
+      margin-bottom: 6px;
+      font-size: 27px;
+    }
+
+    .boas-vindas p {
+      color: #666;
+      line-height: 1.5;
+    }
+
+    .painel {
+      background: var(--branco);
+      border: 1px solid var(--borda);
+      border-radius: 16px;
+      padding: 22px;
+      margin-bottom: 24px;
+      box-shadow: 0 4px 18px #7c2e5010;
+    }
+
+    .painel h2 {
+      margin-top: 0;
+      color: var(--rosa);
+    }
+
+    .grade-formulario {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .campo {
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+
+    .campo label {
+      font-weight: 700;
+      font-size: 14px;
+    }
+
+    .campo input,
+    .campo select,
+    .filtros input,
+    .filtros select {
+      width: 100%;
+      min-width: 0;
+      border: 1px solid #d9c4d0;
+      border-radius: 9px;
+      padding: 12px;
+      background: white;
+      color: var(--texto);
+    }
+
+    input:focus,
+    select:focus {
+      outline: 2px solid #e9a5ca;
+      outline-offset: 1px;
+    }
+
+    .acoes-formulario {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 20px;
+    }
+
+    .botao-principal {
+      background: var(--rosa);
+      color: white;
+    }
+
+    .botao-secundario {
+      background: #f2edf0;
+      color: var(--texto);
+    }
+
+    #mensagemEstoque {
+      margin: 14px 0 0;
+      line-height: 1.5;
+      overflow-wrap: anywhere;
+    }
+
+    #mensagemEstoque[data-tipo="erro"] {
+      color: #b42318;
+    }
+
+    #mensagemEstoque[data-tipo="sucesso"] {
+      color: #18794e;
+    }
+
+    .filtros {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    #listaProdutos {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .produto {
+      border: 1px solid var(--borda);
+      border-radius: 14px;
+      padding: 17px;
+      min-width: 0;
+      background: white;
+    }
+
+    .produto-cabecalho {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .produto h3 {
+      margin: 0 0 6px;
+      overflow-wrap: anywhere;
+    }
+
+    .produto-cabecalho p {
+      color: #777;
+      margin: 0;
+      font-size: 14px;
+    }
+
+    .status {
+      background: var(--rosa-claro);
+      color: #96356a;
+      padding: 6px 8px;
+      border-radius: 20px;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .dados-produto {
+      margin: 16px 0;
+      line-height: 1.4;
+    }
+
+    .dados-produto p {
+      margin: 8px 0;
+      overflow-wrap: anywhere;
+    }
+
+    .acoes-produto {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .acoes-produto button {
+      background: var(--rosa-claro);
+      color: #96356a;
+      font-size: 13px;
+      padding: 9px 10px;
+    }
+
+    .vazio {
+      grid-column: 1 / -1;
+      padding: 25px;
+      border: 1px dashed var(--borda);
+      border-radius: 12px;
+      color: #777;
+      text-align: center;
+    }
+
+    footer {
+      padding: 24px;
+      text-align: center;
+      color: #777;
+      font-size: 13px;
+    }
+
+    @media (max-width: 700px) {
+      .grade-formulario,
+      .filtros,
+      #listaProdutos {
+        grid-template-columns: 1fr;
+      }
+
+      .painel {
+        padding: 16px;
+      }
+
+      .boas-vindas h2 {
+        font-size: 23px;
+      }
+
+      header {
+        padding: 16px 4%;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <div>
+      <h1 class="marca">🍦 Creamy</h1>
+      <p class="subtitulo">Sistema de gerenciamento da sorveteria</p>
+    </div>
+
+    <button id="botaoSair" class="botao-sair" type="button">
+      Sair da conta
+    </button>
+  </header>
+
+  <main>
+    <section class="boas-vindas">
+      <h2>Controle de estoque</h2>
+      <p>
+        Cadastre produtos, acompanhe quantidades e atualize preços.
+        As alterações recebidas do banco serão exibidas em tempo real.
+      </p>
+    </section>
+
+    <section class="painel">
+      <h2>Cadastro de produto</h2>
+
+      <form id="formProduto">
+        <div class="grade-formulario">
+          <div class="campo">
+            <label for="nomeProduto">Nome do produto</label>
+            <input
+              id="nomeProduto"
+              type="text"
+              maxlength="100"
+              placeholder="Ex.: Sorvete de morango"
+              required
+            >
+          </div>
+
+          <div class="campo">
+            <label for="categoriaProduto">Categoria</label>
+            <select id="categoriaProduto" required>
+              <option value="Sorvetes">Sorvetes</option>
+              <option value="Picolés">Picolés</option>
+              <option value="Casquinhas">Casquinhas</option>
+              <option value="Copos">Copos</option>
+              <option value="Coberturas">Coberturas</option>
+              <option value="Frutas">Frutas</option>
+              <option value="Outros">Outros</option>
+            </select>
+          </div>
+
+          <div class="campo">
+            <label for="quantidadeProduto">Quantidade em estoque</label>
+            <input
+              id="quantidadeProduto"
+              type="number"
+              min="0"
+              step="1"
+              value="0"
+              required
+            >
+          </div>
+
+          <div class="campo">
+            <label for="precoProduto">Preço de venda (R$)</label>
+            <input
+              id="precoProduto"
+              type="number"
+              min="0"
+              step="0.01"
+              value="0"
+              required
+            >
+          </div>
+
+          <div class="campo">
+            <label for="custoProduto">Custo unitário (R$)</label>
+            <input
+              id="custoProduto"
+              type="number"
+              min="0"
+              step="0.01"
+              value="0"
+              required
+            >
+          </div>
+        </div>
+
+        <div class="acoes-formulario">
+          <button
+            id="botaoSalvar"
+            class="botao-principal"
+            type="submit"
+          >
+            Cadastrar produto
+          </button>
+
+          <button
+            id="botaoCancelar"
+            class="botao-secundario"
+            type="button"
+            hidden
+          >
+            Cancelar edição
+          </button>
+        </div>
+
+        <p id="mensagemEstoque" role="status" aria-live="polite">
+          Verificando acesso...
+        </p>
+      </form>
+    </section>
+
+    <section class="painel">
+      <h2>Produtos cadastrados</h2>
+
+      <div class="filtros">
+        <input
+          id="buscaProduto"
+          type="search"
+          placeholder="Buscar produto pelo nome..."
+          aria-label="Buscar produto pelo nome"
+        >
+
+        <select id="filtroCategoria" aria-label="Filtrar por categoria">
+          <option value="">Todas as categorias</option>
+        </select>
+      </div>
+
+      <div id="listaProdutos">
+        <p class="vazio">Carregando produtos...</p>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    Creamy — gerenciamento de estoque
+  </footer>
+
+  <script type="module" src="./firebase-v2/estoque.js"></script>
+</body>
+</html>
+```
